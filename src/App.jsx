@@ -6,6 +6,7 @@ import {
   groupChartRows,
   validateRows,
   parseCsv,
+  parseSpreadsheet,
   toCsv,
 } from "./data.js";
 import "./App.css";
@@ -217,11 +218,13 @@ export default function App() {
     event.target.value = "";
     if (!file) return;
     if (file.size > 2e6) {
-      setNotice("Use um arquivo CSV de até 2 MB.");
+      setNotice("Use um arquivo CSV ou Excel de até 2 MB.");
       return;
     }
     try {
-      const imported = parseCsv(await file.text());
+      const imported = file.name.toLowerCase().endsWith(".xlsx")
+        ? await parseSpreadsheet(file)
+        : parseCsv(await file.text());
       setConfirmation({
         type: "import",
         rows: imported,
@@ -755,7 +758,7 @@ export default function App() {
                     onClick={() => fileInput.current.click()}
                   >
                     <Icon name="upload" size={17} />
-                    Importar CSV
+                    Importar CSV ou XLSX
                   </button>
                 </div>
               </div>
@@ -848,7 +851,7 @@ export default function App() {
                 <div>
                   <strong>Primeira vez importando?</strong>
                   <p>
-                    O CSV deve conter data, descricao, categoria, tipo e valor.
+                    Aceita CSV e XLSX com data, descricao, categoria, tipo e valor. A data pode estar em DD/MM/AAAA ou AAAA-MM-DD.
                     Use datas AAAA-MM-DD e tipo receita ou despesa.
                   </p>
                   <button
@@ -884,7 +887,7 @@ export default function App() {
       <input
         ref={fileInput}
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         hidden
         onChange={importFile}
       />

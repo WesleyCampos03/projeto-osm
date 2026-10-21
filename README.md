@@ -73,9 +73,9 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. O filtro de período também se aplica à tabela. Os cálculos são atualizados após cada alteração.
 
-**Importar CSV** valida o arquivo e solicita confirmação antes de substituir os dados. **Carregar exemplos** também substitui o conjunto atual. Exporte um backup antes dessas operações para preservar seus registros.
+**Importar CSV ou XLSX** valida o arquivo e solicita confirmação antes de substituir os dados. Em arquivos XLSX, a primeira aba que contém as colunas obrigatórias é selecionada automaticamente. **Carregar exemplos** também substitui o conjunto atual. Exporte um backup antes dessas operações para preservar seus registros.
 
-**Exportar CSV** baixa todos os registros, inclusive os que não aparecem no filtro atual. O arquivo pode ser importado em outro navegador ou computador.
+**Exportar CSV** baixa todos os registros, inclusive os que não aparecem no filtro atual. O arquivo pode ser importado em outro navegador ou computador. Arquivos XLSX também são aceitos, respeitando o limite de 2 MB e 5.000 registros.
 
 ### Guia de uso
 
@@ -110,7 +110,7 @@ data;descricao;categoria;tipo;valor
 
 Regras de validação:
 
-- Data válida em **AAAA-MM-DD**.
+- Data válida em **AAAA-MM-DD** ou **DD/MM/AAAA**. Internamente, o sistema converte para AAAA-MM-DD.
 - Descrição preenchida, com até 120 caracteres.
 - Categoria preenchida, com até 60 caracteres.
 - Tipo `receita` ou `despesa`.
@@ -119,7 +119,7 @@ Regras de validação:
 
 O importador aceita ponto e vírgula como separador e vírgula decimal, ou vírgula como separador e ponto decimal. Aceita textos entre aspas, aspas escapadas e cabeçalhos acentuados, como `descrição`. Arquivos inválidos não substituem os dados existentes.
 
-Baixe um modelo em **Meus dados → Baixar arquivo de exemplo**. Planilhas devem ser exportadas como CSV; arquivos XLSX não são importados diretamente.
+Baixe um modelo em **Meus dados → Baixar arquivo de exemplo**. Planilhas podem ser exportadas como CSV ou importadas diretamente como XLSX. Em XLSX, a aplicação procura automaticamente a primeira aba com as colunas obrigatórias.
 
 ## Salvamento e backup
 

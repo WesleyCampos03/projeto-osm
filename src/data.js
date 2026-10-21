@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx";
+
 export const money = (value) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
     value,
@@ -65,6 +67,20 @@ export function groupChartRows(rows, grouping = "month", sales = false) {
   );
 }
 
+export function normalizeDate(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed?.y && parsed?.m && parsed?.d)
+      return `${parsed.y.toString().padStart(4, "0")}-${parsed.m.toString().padStart(2, "0")}-${parsed.d.toString().padStart(2, "0")}`;
+  }
+  if (value instanceof Date && Number.isFinite(value.getTime()))
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  const date = String(value ?? "").trim();
+  const brazilian = date.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (brazilian) return `${brazilian[3]}-${brazilian[2]}-${brazilian[1]}`;
+  return date;
+}
+
 export function validateRows(rows) {
   if (!Array.isArray(rows) || rows.length > 5000)
     throw new Error("Use até 5.000 registros.");
@@ -73,7 +89,7 @@ export function validateRows(rows) {
     const line = i + 2;
     if (!row || typeof row !== "object")
       throw new Error(`Registro inválido na linha ${line}.`);
-    const date = String(row.date || ""),
+    const date = normalizeDate(row.date),
       parsed = new Date(`${date}T12:00:00Z`);
     if (
       !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
@@ -81,7 +97,7 @@ export function validateRows(rows) {
       parsed.toISOString().slice(0, 10) !== date
     )
       throw new Error(
-        `Linha ${line}: use uma data válida no formato AAAA-MM-DD.`,
+        `Linha ${line}: use uma data válida nos formatos AAAA-MM-DD ou DD/MM/AAAA.`,
       );
     const description = String(row.description || "").trim(),
       category = String(row.category || "").trim(),
@@ -195,6 +211,50 @@ export function parseCsv(text) {
     }),
   );
 }
+export async function parseSpreadsheet(file) {
+  if (file.size > 2e6) throw new Error("Use um arquivo Excel de até 2 MB.");
+  const workbook = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+  const required = ["data", "descricao", "categoria", "tipo", "valor"];
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const records = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    if (!records.length) continue;
+    const headers = records[0].map((value) =>
+      String(value)
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, ""),
+    );
+    if (required.every((key) => headers.includes(key))) {
+      const rows = records.slice(1).filter((record) =>
+        record.some((value) => String(value).trim()),
+      );
+      if (!rows.length)
+        throw new Error(`A aba "${sheetName}" não contém registros.`);
+      return validateRows(
+        rows.map((record) => {
+          if (record.length > headers.length)
+            throw new Error(`Aba "${sheetName}": quantidade de colunas incorreta.`);
+          const read = (key) => String(record[headers.indexOf(key)] ?? "").trim();
+          return {
+            date: record[headers.indexOf("data")],
+            description: read("descricao"),
+            category: read("categoria"),
+            type: read("tipo"),
+            amount: typeof record[headers.indexOf("valor")] === "number"
+              ? record[headers.indexOf("valor")]
+              : Number(read("valor").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".")),
+          };
+        }),
+      );
+    }
+  }
+  throw new Error(
+    "Nenhuma aba contém as colunas data, descricao, categoria, tipo e valor.",
+  );
+}
+
 export function toCsv(rows) {
   const escape = (value) =>
     '"' +

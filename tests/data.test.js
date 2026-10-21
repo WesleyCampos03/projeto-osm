@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import * as XLSX from "xlsx";
 import {
   parseCsv,
+  parseSpreadsheet,
   toCsv,
   validateRows,
   summarize,
@@ -65,6 +67,40 @@ test("comma delimited files support decimal points and quoted commas", () => {
   assert.equal(rows[0].amount, 12.5);
   assert.equal(rows[0].description, "Venda, cliente A");
 });
+test("XLSX selects the first sheet with the required columns", async () => {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([["outra", "aba"], ["x", "y"]]),
+    "Resumo",
+  );
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.aoa_to_sheet([
+      ["data", "descrição", "categoria", "tipo", "valor"],
+      ["31/12/2026", "Venda", "Produtos", "receita", 125.5],
+    ]),
+    "Dados",
+  );
+  const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+  const rows = await parseSpreadsheet({ size: buffer.length, arrayBuffer: async () => buffer });
+  assert.equal(rows[0].date, "2026-12-31");
+  assert.equal(rows[0].description, "Venda");
+  assert.equal(rows[0].amount, 125.5);
+});
+
+test("Brazilian dates are normalized and validated", () => {
+  const rows = parseCsv(
+    "data;descricao;categoria;tipo;valor\n31/12/2026;Venda;Produtos;receita;10,50",
+  );
+  assert.equal(rows[0].date, "2026-12-31");
+  assert.throws(() =>
+    parseCsv(
+      "data;descricao;categoria;tipo;valor\n31/02/2026;Venda;Produtos;receita;10,50",
+    ),
+  );
+});
+
 test("invalid data is rejected before replacing current records", () => {
   const valid = { ...exampleRows[0] };
   for (const patch of [
