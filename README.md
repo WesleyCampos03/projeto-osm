@@ -2,7 +2,7 @@
 
 Aplicação web para organizar receitas e despesas e transformá-las em painéis financeiros e de vendas. Permite cadastrar registros, importar planilhas Excel (.xlsx) ou CSV, filtrar períodos e visualizar os resultados em gráficos interativos.
 
-Esta versão funciona no navegador, com salvamento local e sem cadastro de conta. Os dados iniciais são exemplos fictícios, que podem ser substituídos pelos registros do usuário.
+Esta versão funciona no navegador, com salvamento local e sem cadastro de conta. O painel começa vazio; exemplos fictícios podem ser carregados manualmente para conhecer os recursos.
 
 ## Requisitos
 

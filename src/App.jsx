@@ -172,14 +172,13 @@ function load() {
   try {
     const saved = localStorage.getItem(KEY);
     return {
-      rows: saved ? validateRows(JSON.parse(saved)) : exampleRows,
+      rows: saved ? validateRows(JSON.parse(saved)) : [],
       warning: "",
     };
   } catch {
     return {
-      rows: exampleRows,
-      warning:
-        "Não foi possível ler os dados salvos. Os exemplos foram carregados.",
+      rows: [],
+      warning: "Não foi possível ler os dados salvos. O painel foi aberto vazio.",
     };
   }
 }
