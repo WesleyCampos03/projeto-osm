@@ -67,7 +67,8 @@ nav {
   font-weight: 650;
   transition:
     background 0.18s,
-    color 0.18s;
+    color 0.18s,
+    transform 0.16s ease;
 }
 .nav-item:hover {
   background: #f7f5fd;
