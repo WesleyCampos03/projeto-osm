@@ -35,6 +35,20 @@ select {
 button {
   cursor: pointer;
   border: none;
+  transition:
+    transform 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  button:not(.button):not(:disabled):hover {
+    transform: translateY(-1px);
+  }
+  button:not(.button):not(:disabled):active {
+    transform: translateY(0) scale(0.98);
+  }
 }
 button,
 a {
