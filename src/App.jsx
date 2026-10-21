@@ -165,26 +165,40 @@ function Icon({ name, size = 20 }) {
     </svg>
   );
 }
+function monthLabel(month) {
+  return new Date(`${month}-02T12:00:00`).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+}
 function load() {
   try {
     const saved = localStorage.getItem(KEY);
     return {
       rows: saved ? validateRows(JSON.parse(saved)) : [],
       warning: "",
+      persistenceBlocked: false,
     };
   } catch {
     return {
       rows: [],
-      warning: "Não foi possível ler os dados salvos. O painel foi aberto vazio.",
+      warning:
+        "Não foi possível ler os dados salvos. Eles foram preservados sem alterações; importe um backup ou confirme antes de substituí-los.",
+      persistenceBlocked: true,
     };
   }
 }
 export default function App() {
   const [initial] = useState(load),
     [rows, setRows] = useState(initial.rows),
+    [persistenceBlocked, setPersistenceBlocked] = useState(
+      initial.persistenceBlocked,
+    ),
     [page, setPage] = useState("dashboard"),
     [model, setModel] = useState("financeiro"),
     [period, setPeriod] = useState("todos"),
+    [comparisonPeriods, setComparisonPeriods] = useState(["", ""]),
+    [categoryFilter, setCategoryFilter] = useState(""),
     [search, setSearch] = useState(""),
     [categoryMetric, setCategoryMetric] = useState("expense"),
     [notice, setNotice] = useState(initial.warning),
@@ -201,6 +215,9 @@ export default function App() {
   const fileInput = useRef(null),
     dialog = useRef(null);
   useEffect(() => {
+    if (persistenceBlocked) {
+      return;
+    }
     try {
       localStorage.setItem(KEY, JSON.stringify(rows));
       setSaved(true);
@@ -210,7 +227,7 @@ export default function App() {
         "Não foi possível salvar neste navegador. Exporte um CSV para guardar seu trabalho.",
       );
     }
-  }, [rows]);
+  }, [rows, persistenceBlocked]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
     window.addEventListener("online", update);
@@ -248,7 +265,25 @@ export default function App() {
       .map((group) => [group.key, group[categoryType]])
       .filter(([, amount]) => amount > 0)
       .sort((a, b) => b[1] - a[1]),
+    categoryOptions = [...new Set(rows.map((row) => row.category))].sort(
+      (a, b) => a.localeCompare(b, "pt-BR"),
+    ),
     total = categories.reduce((sum, [, amount]) => sum + amount, 0);
+  const comparisonMonthA =
+      (months.includes(comparisonPeriods[0]) && comparisonPeriods[0]) ||
+      months.at(-2) ||
+      months.at(-1) ||
+      "",
+    comparisonMonthB =
+      (months.includes(comparisonPeriods[1]) && comparisonPeriods[1]) ||
+      months.at(-1) ||
+      "",
+    comparisonStatsA = summarize(
+      rows.filter((row) => row.date.startsWith(comparisonMonthA)),
+    ),
+    comparisonStatsB = summarize(
+      rows.filter((row) => row.date.startsWith(comparisonMonthB)),
+    );
   const periodLabel =
     period === "todos"
       ? "Todo o período"
@@ -257,16 +292,40 @@ export default function App() {
           year: "numeric",
         });
   const visible = filtered
-    .filter((row) =>
-      `${row.description} ${row.category}`
-        .toLocaleLowerCase("pt-BR")
-        .includes(search.toLocaleLowerCase("pt-BR")),
+    .filter(
+      (row) =>
+        (!categoryFilter || row.category === categoryFilter) &&
+        `${row.description} ${row.category}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(search.toLocaleLowerCase("pt-BR")),
     )
     .sort((a, b) => b.date.localeCompare(a.date));
   function updateRows(next) {
     setRows(next);
+    if (
+      categoryFilter &&
+      !next.some((row) => row.category === categoryFilter)
+    )
+      setCategoryFilter("");
     if (period !== "todos" && !next.some((row) => row.date.startsWith(period)))
       setPeriod("todos");
+  }
+  function changeComparisonPeriod(index, value) {
+    setComparisonPeriods((selected) => {
+      const next = [
+        (months.includes(selected[0]) && selected[0]) ||
+          months.at(-2) ||
+          months.at(-1) ||
+          "",
+        (months.includes(selected[1]) && selected[1]) ||
+          months.at(-1) ||
+          "",
+      ];
+      next[index] = value;
+      if (months.length > 1 && next[0] === next[1])
+        next[1 - index] = months.find((month) => month !== value);
+      return next;
+    });
   }
   function close() {
     setShowForm(false);
@@ -366,6 +425,12 @@ export default function App() {
     }
   }
   function confirm() {
+    if (confirmation.type === "enable-storage") {
+      setPersistenceBlocked(false);
+      setNotice("Salvamento ativado. Os dados desta sessão foram salvos.");
+      close();
+      return;
+    }
     if (confirmation.type === "delete")
       updateRows(rows.filter((row) => row.id !== confirmation.id));
     else {
@@ -380,6 +445,8 @@ export default function App() {
           ? "Planilha mesclada. Registros iguais foram somados e os novos foram adicionados."
           : "Dados carregados. Explore seu painel!",
       );
+      if (confirmation.type === "example" || confirmation.type === "import")
+        setPersistenceBlocked(false);
     }
     close();
   }
@@ -429,6 +496,21 @@ export default function App() {
           "blue",
           "Receitas menos despesas",
         ],
+      ];
+  const comparisonMetrics = sales
+    ? [
+        ["Receita de vendas", comparisonStatsA.income, comparisonStatsB.income],
+        [
+          "Vendas registradas",
+          comparisonStatsA.count,
+          comparisonStatsB.count,
+        ],
+        ["Ticket médio", comparisonStatsA.ticket, comparisonStatsB.ticket],
+      ]
+    : [
+        ["Receitas", comparisonStatsA.income, comparisonStatsB.income],
+        ["Despesas", comparisonStatsA.expense, comparisonStatsB.expense],
+        ["Saldo", comparisonStatsA.balance, comparisonStatsB.balance],
       ];
   return (
     <div className="app-shell">
@@ -515,12 +597,30 @@ export default function App() {
           </div>
         </header>
         <div className="main-content">
-          {notice && (
-            <div className="notice no-print" role="status">
-              <span>{notice}</span>
-              <button aria-label="Fechar aviso" onClick={() => setNotice("")}>
-                ×
-              </button>
+          {(notice || persistenceBlocked) && (
+            <div
+              className={`notice no-print ${persistenceBlocked ? "storage-warning" : ""}`}
+              role={persistenceBlocked ? "alert" : "status"}
+            >
+              <span>{persistenceBlocked ? initial.warning : notice}</span>
+              {persistenceBlocked ? (
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    setConfirmation({
+                      type: "enable-storage",
+                      title: "Substituir os dados salvos?",
+                      text: "O navegador não conseguiu ler os dados anteriores. Ao continuar, os dados desta sessão e quaisquer alterações feitas serão salvos no lugar dos dados que não puderam ser lidos.",
+                    })
+                  }
+                >
+                  Continuar e substituir
+                </button>
+              ) : (
+                <button aria-label="Fechar aviso" onClick={() => setNotice("")}>
+                  ×
+                </button>
+              )}
             </div>
           )}
           <section className="page-heading">
@@ -599,10 +699,7 @@ export default function App() {
                     <option value="todos">Todo o período</option>
                     {months.map((month) => (
                       <option key={month} value={month}>
-                        {new Date(`${month}-02T12:00:00`).toLocaleDateString(
-                          "pt-BR",
-                          { month: "long", year: "numeric" },
-                        )}
+                        {monthLabel(month)}
                       </option>
                     ))}
                   </select>
@@ -687,6 +784,93 @@ export default function App() {
                     <small>{caption}</small>
                   </article>
                 ))}
+              </section>
+              <section
+                className="comparison-panel"
+                aria-label="Comparação entre períodos"
+              >
+                <div className="comparison-heading">
+                  <div>
+                    <h2>Comparar períodos</h2>
+                    <p>
+                      Compare os indicadores de dois meses nos seus dados.
+                    </p>
+                  </div>
+                  {months.length > 1 && (
+                    <div className="comparison-controls">
+                      <label>
+                        Período A
+                        <select
+                          value={comparisonMonthA}
+                          onChange={(event) =>
+                            changeComparisonPeriod(0, event.target.value)
+                          }
+                        >
+                          {months.map((month) => (
+                            <option key={month} value={month}>
+                              {monthLabel(month)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <span aria-hidden="true">×</span>
+                      <label>
+                        Período B
+                        <select
+                          value={comparisonMonthB}
+                          onChange={(event) =>
+                            changeComparisonPeriod(1, event.target.value)
+                          }
+                        >
+                          {months.map((month) => (
+                            <option key={month} value={month}>
+                              {monthLabel(month)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  )}
+                </div>
+                {months.length > 1 ? (
+                  <div className="comparison-table-scroll">
+                    <table className="comparison-table">
+                      <thead>
+                        <tr>
+                          <th>Indicador</th>
+                          <th>{monthLabel(comparisonMonthA)}</th>
+                          <th>{monthLabel(comparisonMonthB)}</th>
+                          <th>Variação (B − A)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {comparisonMetrics.map(([label, valueA, valueB]) => {
+                          const difference = valueB - valueA;
+                          const format = (value) =>
+                            label === "Vendas registradas"
+                              ? String(value)
+                              : money(value);
+                          return (
+                            <tr key={label}>
+                              <th scope="row">{label}</th>
+                              <td>{format(valueA)}</td>
+                              <td>{format(valueB)}</td>
+                              <td>
+                                {difference > 0 ? "+" : ""}
+                                {format(difference)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="comparison-empty">
+                    Adicione registros em pelo menos dois meses para comparar
+                    períodos.
+                  </p>
+                )}
               </section>
               <section className="charts-grid">
                 <article className="panel">
@@ -945,17 +1129,33 @@ export default function App() {
                     Registros{" "}
                     <span className="count-badge">{visible.length}</span>
                   </h2>
-                  <label className="search-label">
-                    <span className="sr-only">
-                      Buscar descrição ou categoria
-                    </span>
-                    <Icon name="search" size={18} />
-                    <input
-                      placeholder="Buscar descrição ou categoria…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </label>
+                  <div className="table-filters">
+                    <label className="category-filter">
+                      <span className="sr-only">Filtrar por categoria</span>
+                      <select
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                      >
+                        <option value="">Todas as categorias</option>
+                        {categoryOptions.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="search-label">
+                      <span className="sr-only">
+                        Buscar descrição ou categoria
+                      </span>
+                      <Icon name="search" size={18} />
+                      <input
+                        placeholder="Buscar descrição ou categoria…"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </label>
+                  </div>
                 </div>
                 <div className="table-scroll">
                   <table>
