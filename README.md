@@ -60,6 +60,7 @@ Exibe os indicadores e gráficos calculados a partir dos registros.
 - **Período:** mostra um mês ou todo o período.
 - **Por mês / Por categoria:** altera o agrupamento dos gráficos.
 - **Colunas / Linha / Rosca:** alterna a visualização dos valores filtrados.
+- **Comparar períodos:** compare receitas, despesas e saldo (ou indicadores de vendas) entre dois meses selecionados.
 - **Distribuição por categoria:** mostra onde se concentram as despesas ou receitas. Nos exemplos financeiros, a barra verde representa Marketing.
 - **PowerPoint / Exportar PDF:** gera uma apresentação de três páginas com indicadores, gráficos mensais e principais categorias. Os dados acompanham o modelo e o período selecionados.
 
@@ -72,7 +73,7 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 3. Clique em **Salvar registro**.
 4. Volte a Meu painel para visualizar os resultados.
 
-É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. O filtro de período também se aplica à tabela. Os cálculos são atualizados após cada alteração.
+É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. Os filtros de período e categoria também se aplicam à tabela. O contador acompanha os filtros e os cálculos são atualizados após cada alteração.
 
 **Importar planilha** lê a primeira aba de Excel `.xlsx` que tenha as colunas obrigatórias, ou um CSV. A importação mescla os registros com os dados salvos. Registros com a mesma data, descrição, categoria e tipo são tratados como iguais; a importação avisa quantos encontrou e pede confirmação antes de somar os valores. Diferenças de maiúsculas, acentos e espaços são ignoradas. **Carregar exemplos** substitui o conjunto atual.
 
@@ -130,6 +131,7 @@ Os registros ficam no `localStorage`, armazenamento do próprio navegador. Não 
 - Outro computador, domínio ou porta não recupera automaticamente os registros anteriores.
 - Apagar os dados de navegação pode remover os registros.
 - Em navegação privada ou com armazenamento bloqueado, o salvamento pode falhar; a interface mostra um aviso.
+- Se os dados salvos não puderem ser lidos, a aplicação não os substitui automaticamente. Confirme a substituição para salvar os dados da sessão, ou importe um CSV válido e confirme a importação.
 
 Use **Exportar CSV** para backup e **Importar planilha** para transferir registros de arquivos `.xlsx` ou CSV. O cache offline guarda os arquivos do site; o CSV é a cópia de segurança dos dados do usuário.
 
@@ -156,6 +158,14 @@ Abra o endereço informado, normalmente `http://localhost:4173`. O comando previ
 | Diretório de saída | `dist`          |
 
 O projeto usa caminhos relativos, permitindo hospedagem em subpastas. Use HTTPS para habilitar o acesso offline. O build não publica o site automaticamente; enviar o código ao GitHub também exige configurar a hospedagem para disponibilizar a aplicação.
+
+## Testes
+
+Execute os testes de cálculos, importação/exportação e interações da interface:
+
+```powershell
+npm test
+```
 
 ## Acesso offline
 
