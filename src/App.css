@@ -881,12 +881,27 @@ footer strong {
   margin-left: 7px;
   color: #8c71c5;
 }
+.search-label {
+  position: relative;
+  display: block;
+  width: min(400px, 50%);
+}
+.search-label > svg {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9a8eaa;
+  pointer-events: none;
+}
 .search-label input {
   border: 1px solid #e8e2ef;
-  padding: 11px 15px;
+  padding: 12px 15px 12px 43px;
   border-radius: 999px;
   font-size: 14px;
-  width: 280px;
+  width: 100%;
+  min-height: 46px;
+  box-sizing: border-box;
   background: #fbfaff;
   color: #655774;
 }
@@ -1579,7 +1594,7 @@ footer {
 }
 .search-label input {
   font-size: 16px;
-  width: min(330px, 100%);
+  width: 100%;
 }
 .table-note {
   font-size: 14px;
@@ -1763,4 +1778,172 @@ footer {
   .insight {
     margin-top: 14px;
   }
+}
+
+/* Visualização do gráfico */
+.chart-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.presentation-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.chart-controls .chart-grouping {
+  margin-top: 0;
+}
+.chart-type {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #eeebf4;
+  border-radius: 12px;
+  background: #fff;
+}
+.chart-type button {
+  padding: 7px 11px;
+  border-radius: 8px;
+  color: #756d83;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+}
+.chart-type button[aria-pressed="true"] {
+  color: #5f49af;
+  background: #f0edf9;
+}
+.line-chart {
+  display: block;
+  width: 100%;
+  min-width: 660px;
+  height: 340px;
+  overflow: visible;
+  margin-top: 8px;
+}
+.line-chart text {
+  fill: #8b8496;
+  font: 12px "Manrope", sans-serif;
+}
+.line-chart .line-grid {
+  stroke: #eeebf4;
+  stroke-dasharray: 4 5;
+}
+.line-chart .line-x-label {
+  fill: #756d83;
+}
+.donut-layout {
+  min-height: 340px;
+  display: grid;
+  grid-template-columns: minmax(190px, 0.9fr) minmax(180px, 1.1fr);
+  align-items: center;
+  gap: 24px;
+  padding: 18px 8px 4px;
+}
+.donut {
+  width: min(100%, 220px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin: auto;
+  position: relative;
+}
+.donut::before {
+  content: "";
+  position: absolute;
+  inset: 18%;
+  background: #fff;
+  border-radius: 50%;
+}
+.donut > div {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  max-width: 72%;
+}
+.donut > div span {
+  color: #8b8496;
+  font-size: 12px;
+}
+.donut > div strong {
+  font-size: clamp(14px, 1.2vw, 19px);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.donut-legend {
+  display: grid;
+  gap: 11px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.donut-legend > div,
+.donut-legend > div > span {
+  display: flex;
+  align-items: center;
+}
+.donut-legend > div {
+  justify-content: space-between;
+  gap: 8px;
+  color: #716a7d;
+  font-size: 13px;
+}
+.donut-legend > div > span {
+  gap: 8px;
+  min-width: 0;
+}
+.donut-legend i {
+  display: inline-block;
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.donut-legend strong {
+  font-variant-numeric: tabular-nums;
+  color: #393246;
+}
+@media (max-width: 1150px) {
+  .metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 680px) {
+  .metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .donut-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .donut {
+    width: min(100%, 200px);
+  }
+  .chart-controls {
+    align-items: flex-start;
+  }
+  .presentation-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Use the same centered dropdown chevron across browser platforms. */
+.period select,
+.form-dialog select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m2 2 4 4 4-4' fill='none' stroke='%23615b72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 12px 8px;
+  padding-right: 38px;
 }

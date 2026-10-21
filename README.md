@@ -1,6 +1,6 @@
 # Gestão Tech
 
-Aplicação web para organizar receitas e despesas e transformá-las em painéis financeiros e de vendas. Permite cadastrar registros, importar CSV, filtrar períodos e visualizar os resultados em gráficos interativos.
+Aplicação web para organizar receitas e despesas e transformá-las em painéis financeiros e de vendas. Permite cadastrar registros, importar planilhas Excel (.xlsx) ou CSV, filtrar períodos e visualizar os resultados em gráficos interativos.
 
 Esta versão funciona no navegador, com salvamento local e sem cadastro de conta. Os dados iniciais são exemplos fictícios, que podem ser substituídos pelos registros do usuário.
 
@@ -58,9 +58,10 @@ Exibe os indicadores e gráficos calculados a partir dos registros.
 - **Financeiro:** receitas, despesas e saldo.
 - **Vendas:** receita de vendas, quantidade de vendas e ticket médio.
 - **Período:** mostra um mês ou todo o período.
-- **Por mês / Por categoria:** altera o agrupamento do gráfico de colunas.
+- **Por mês / Por categoria:** altera o agrupamento dos gráficos.
+- **Colunas / Linha / Rosca:** alterna a visualização dos valores filtrados.
 - **Distribuição por categoria:** mostra onde se concentram as despesas ou receitas. Nos exemplos financeiros, a barra verde representa Marketing.
-- **Imprimir:** abre a impressão do navegador; escolha Salvar como PDF para guardar o painel.
+- **PowerPoint / Exportar PDF:** gera uma apresentação de três páginas com indicadores, gráficos mensais e principais categorias. Os dados acompanham o modelo e o período selecionados.
 
 Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas inclui receitas nos gráficos; despesas continuam disponíveis no modelo Financeiro.
 
@@ -73,7 +74,7 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. O filtro de período também se aplica à tabela. Os cálculos são atualizados após cada alteração.
 
-**Importar CSV** valida o arquivo e solicita confirmação antes de substituir os dados. **Carregar exemplos** também substitui o conjunto atual. Exporte um backup antes dessas operações para preservar seus registros.
+**Importar planilha** lê a primeira aba de arquivos Excel `.xlsx` ou CSV, valida o arquivo e solicita confirmação antes de substituir os dados. Use as colunas data, descrição, categoria, tipo e valor (aceita nomes equivalentes em inglês). **Carregar exemplos** também substitui o conjunto atual. Exporte um backup antes dessas operações para preservar seus registros.
 
 **Exportar CSV** baixa todos os registros, inclusive os que não aparecem no filtro atual. O arquivo pode ser importado em outro navegador ou computador.
 
@@ -95,11 +96,11 @@ No modelo Vendas, **cada linha de receita deve representar uma venda**. Registra
 
 Exemplo: duas vendas de R$ 200 e R$ 300, com uma despesa de R$ 100, resultam em R$ 500 de receitas, R$ 100 de despesas, R$ 400 de saldo, duas vendas e ticket médio de R$ 250.
 
-Os gráficos de colunas somam os valores por mês ou categoria. As barras horizontais consideram despesas no modelo Financeiro e receitas no modelo Vendas.
+Os gráficos agrupam os valores por mês ou categoria. Colunas e linhas comparam receitas e despesas no modelo Financeiro. A rosca mostra a composição dos registros; a lista ao lado detalha despesas ou vendas por categoria.
 
 ## Formato do CSV
 
-São obrigatórias as colunas `data`, `descricao`, `categoria`, `tipo` e `valor`. A ordem pode variar; não pode haver cabeçalhos duplicados.
+São obrigatórias colunas equivalentes a `data`, `descricao`, `categoria`, `tipo` e `valor`. A ordem pode variar. A importação Excel lê a primeira aba; títulos e cabeçalhos devem estar na primeira linha. Os formatos aceitos são `.xlsx` e CSV.
 
 ```csv
 data;descricao;categoria;tipo;valor
@@ -130,7 +131,7 @@ Os registros ficam no `localStorage`, armazenamento do próprio navegador. Não 
 - Apagar os dados de navegação pode remover os registros.
 - Em navegação privada ou com armazenamento bloqueado, o salvamento pode falhar; a interface mostra um aviso.
 
-Use **Exportar CSV** para backup e **Importar CSV** para transferir registros. O cache offline guarda os arquivos do site; o CSV é a cópia de segurança dos dados do usuário.
+Use **Exportar CSV** para backup e **Importar planilha** para transferir registros de arquivos `.xlsx` ou CSV. O cache offline guarda os arquivos do site; o CSV é a cópia de segurança dos dados do usuário.
 
 ## Preparar para hospedagem
 

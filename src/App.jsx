@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import readXlsxFile from "read-excel-file/browser";
 import {
   exampleRows,
   money,
@@ -18,6 +19,86 @@ const blank = {
   type: "receita",
   amount: "",
 };
+
+function parseExcelFile(file) {
+  return readXlsxFile(file).then((sheets) => {
+    const rows = sheets[0]?.data || [];
+    if (rows.length < 2) {
+      throw new Error("A primeira aba precisa ter cabeçalho e pelo menos um registro.");
+    }
+    const normalize = (value) =>
+      String(value ?? "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+    const aliases = {
+      data: ["data", "date"],
+      description: ["descricao", "description", "item", "produto"],
+      category: ["categoria", "category", "grupo"],
+      type: ["tipo", "type", "natureza"],
+      amount: ["valor", "amount", "value", "total"],
+    };
+    const headers = rows[0].map(normalize);
+    const indexes = Object.fromEntries(
+      Object.entries(aliases).map(([field, names]) => [
+        field,
+        headers.findIndex((header) => names.includes(header)),
+      ]),
+    );
+    const missing = Object.entries(indexes)
+      .filter(([, index]) => index < 0)
+      .map(([field]) =>
+        ({
+          description: "descrição",
+          category: "categoria",
+          amount: "valor",
+          type: "tipo",
+          data: "data",
+        })[field],
+      );
+    if (missing.length) {
+      throw new Error(`Não encontrei as colunas: ${missing.join(", ")}.`);
+    }
+    const excelDate = (value) => {
+      if (value instanceof Date && !Number.isNaN(value.getTime()))
+        return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+      if (typeof value === "number") {
+        const date = new Date(Date.UTC(1899, 11, 30) + value * 86400000);
+        return date.toISOString().slice(0, 10);
+      }
+      const text = String(value ?? "").trim();
+      const brDate = text.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
+      return brDate
+        ? `${brDate[3]}-${brDate[2].padStart(2, "0")}-${brDate[1].padStart(2, "0")}`
+        : text;
+    };
+    const dataRows = rows.slice(1).filter((row) => row.some((cell) => cell !== null && cell !== ""));
+    if (dataRows.length > 5000) throw new Error("Use até 5.000 registros.");
+    const converted = dataRows.map((row) => {
+      const read = (field) => row[indexes[field]];
+      const type = normalize(read("type"));
+      const rawAmount = read("amount");
+      const amount = typeof rawAmount === "number"
+        ? rawAmount
+        : Number(String(rawAmount ?? "").replace(/R\$|\s/g, "").replace(/\.(?=\d{3}(?:,|$))/g, "").replace(",", "."));
+      return {
+        date: excelDate(read("data")),
+        description: String(read("description") ?? ""),
+        category: String(read("category") ?? ""),
+        type: ["receita", "revenue", "income", "entrada"].includes(type)
+          ? "receita"
+          : ["despesa", "expense", "saida"].includes(type)
+            ? "despesa"
+            : type,
+        amount,
+      };
+    });
+    return validateRows(converted);
+  });
+}
+
 function Icon({ name, size = 20 }) {
   const paths = {
     dashboard: (
@@ -63,6 +144,12 @@ function Icon({ name, size = 20 }) {
     print: <path d="M6 9V3h12v6M6 17H3V9h18v8h-3M6 14h12v7H6z" />,
     edit: <path d="m4 16-1 5 5-1L21 7l-5-5zM13 5l5 5" />,
     trash: <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" />,
+    search: (
+      <>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-4-4" />
+      </>
+    ),
   };
   return (
     <svg
@@ -112,6 +199,7 @@ export default function App() {
   const [formError, setFormError] = useState("");
   const [offlineReady, setOfflineReady] = useState(false);
   const [chartGrouping, setChartGrouping] = useState("month");
+  const [chartType, setChartType] = useState("columns");
   const fileInput = useRef(null),
     dialog = useRef(null);
   useEffect(() => {
@@ -217,16 +305,19 @@ export default function App() {
     event.target.value = "";
     if (!file) return;
     if (file.size > 2e6) {
-      setNotice("Use um arquivo CSV de até 2 MB.");
+      setNotice("Use uma planilha ou CSV de até 2 MB.");
       return;
     }
     try {
-      const imported = parseCsv(await file.text());
+      const isExcel = /\.xlsx?$/i.test(file.name);
+      const imported = isExcel
+        ? await parseExcelFile(file)
+        : parseCsv(await file.text());
       setConfirmation({
         type: "import",
         rows: imported,
         title: "Substituir os dados?",
-        text: `${imported.length} registros válidos serão importados, substituindo os dados atuais. Exporte um backup antes se quiser preservá-los.`,
+        text: `${imported.length} registros válidos da ${isExcel ? "primeira aba da planilha" : "planilha CSV"} serão importados, substituindo os dados atuais. Exporte um backup antes se quiser preservá-los.`,
       });
     } catch (error) {
       setNotice(error.message);
@@ -245,6 +336,23 @@ export default function App() {
       : "gestao-tech-dados.csv";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function handlePresentationExport(format) {
+    try {
+      const options = { rows: filtered, sales, period };
+      if (format === "pptx") {
+        const { exportPowerPoint } = await import("./pptx-export.js");
+        await exportPowerPoint(options);
+      } else {
+        const { exportPdf } = await import("./pdf-export.js");
+        exportPdf(options);
+      }
+      setNotice(
+        `Apresentação ${format === "pptx" ? "PowerPoint" : "PDF"} exportada com sucesso.`,
+      );
+    } catch (error) {
+      setNotice(`Não foi possível exportar a apresentação: ${error.message}`);
+    }
   }
   function confirm() {
     if (confirmation.type === "delete")
@@ -483,16 +591,6 @@ export default function App() {
                   <Icon name="download" size={17} />
                   Exportar CSV
                 </button>
-                {page === "dashboard" && (
-                  <button
-                    className="button icon-button"
-                    aria-label="Imprimir ou salvar painel em PDF"
-                    title="Imprimir / salvar PDF"
-                    onClick={() => window.print()}
-                  >
-                    <Icon name="print" />
-                  </button>
-                )}
               </div>
             </div>
           )}
@@ -571,8 +669,10 @@ export default function App() {
                   <div className="panel-heading">
                     <div>
                       <h2>
-                        {chartGrouping === "category"
-                          ? sales
+                        {chartType === "donut"
+                          ? "Composição dos registros"
+                          : chartGrouping === "category"
+                            ? sales
                             ? "Vendas por categoria"
                             : "Receitas e despesas por categoria"
                           : sales
@@ -580,7 +680,9 @@ export default function App() {
                             : "Como seu dinheiro se movimenta"}
                       </h2>
                       <p>
-                        {chartGrouping === "category"
+                        {chartType === "donut"
+                          ? "Veja como os valores se distribuem"
+                          : chartGrouping === "category"
                           ? "Compare os valores de cada categoria no período"
                           : sales
                             ? "Receitas agrupadas por mês"
@@ -592,21 +694,34 @@ export default function App() {
                     </span>
                   </div>
                   <div
-                    className="chart-grouping no-print"
+                    className="chart-controls no-print"
                     aria-label="Agrupamento do gráfico"
                   >
-                    <button
-                      aria-pressed={chartGrouping === "month"}
-                      onClick={() => setChartGrouping("month")}
-                    >
-                      Por mês
-                    </button>
-                    <button
-                      aria-pressed={chartGrouping === "category"}
-                      onClick={() => setChartGrouping("category")}
-                    >
-                      Por categoria
-                    </button>
+                    <div className="chart-grouping" aria-label="Agrupar dados">
+                      <button
+                        aria-pressed={chartGrouping === "month"}
+                        onClick={() => setChartGrouping("month")}
+                      >
+                        Por mês
+                      </button>
+                      <button
+                        aria-pressed={chartGrouping === "category"}
+                        onClick={() => setChartGrouping("category")}
+                      >
+                        Por categoria
+                      </button>
+                    </div>
+                    <div className="chart-type" aria-label="Tipo de visualização">
+                      {[["columns", "Colunas"], ["line", "Linha"], ["donut", "Rosca"]].map(([id, label]) => (
+                        <button
+                          key={id}
+                          aria-pressed={chartType === id}
+                          onClick={() => setChartType(id)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className="legend">
                     <span>
@@ -620,10 +735,11 @@ export default function App() {
                       </span>
                     )}
                   </div>
-                  <BarChart
+                  <ChartView
                     rows={filtered}
                     sales={sales}
                     grouping={chartGrouping}
+                    type={chartType}
                   />
                 </article>
                 <article className="panel">
@@ -703,6 +819,22 @@ export default function App() {
                   )}
                 </article>
               </section>
+              <div className="presentation-actions no-print">
+                <button
+                  className="button subtle"
+                  onClick={() => handlePresentationExport("pptx")}
+                >
+                  <Icon name="download" size={17} />
+                  Exportar PowerPoint
+                </button>
+                <button
+                  className="button subtle"
+                  onClick={() => handlePresentationExport("pdf")}
+                >
+                  <Icon name="print" size={17} />
+                  Exportar PDF
+                </button>
+              </div>
               <section className="insight">
                 <span className="insight-icon">
                   <Icon name="sparkle" />
@@ -755,7 +887,7 @@ export default function App() {
                     onClick={() => fileInput.current.click()}
                   >
                     <Icon name="upload" size={17} />
-                    Importar CSV
+                    Importar planilha
                   </button>
                 </div>
               </div>
@@ -769,6 +901,7 @@ export default function App() {
                     <span className="sr-only">
                       Buscar descrição ou categoria
                     </span>
+                    <Icon name="search" size={18} />
                     <input
                       placeholder="Buscar descrição ou categoria…"
                       value={search}
@@ -848,8 +981,9 @@ export default function App() {
                 <div>
                   <strong>Primeira vez importando?</strong>
                   <p>
-                    O CSV deve conter data, descricao, categoria, tipo e valor.
-                    Use datas AAAA-MM-DD e tipo receita ou despesa.
+                    Importe Excel (.xlsx) ou CSV. Use colunas de data,
+                    descrição, categoria, tipo e valor; datas em AAAA-MM-DD e
+                    tipo receita ou despesa.
                   </p>
                   <button
                     className="text-button"
@@ -884,7 +1018,7 @@ export default function App() {
       <input
         ref={fileInput}
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         hidden
         onChange={importFile}
       />
@@ -1000,7 +1134,7 @@ export default function App() {
     </div>
   );
 }
-function BarChart({ rows, sales, grouping }) {
+function ChartView({ rows, sales, grouping, type }) {
   const values = groupChartRows(rows, grouping, sales);
   if (!values.length)
     return (
@@ -1010,6 +1144,8 @@ function BarChart({ rows, sales, grouping }) {
         Adicione registros para começar.
       </div>
     );
+  if (type === "donut") return <DonutChart values={values} sales={sales} grouping={grouping} />;
+  if (type === "line") return <LineChart values={values} sales={sales} grouping={grouping} />;
   const max = Math.max(
     1,
     ...values.flatMap((value) =>
@@ -1080,6 +1216,80 @@ function BarChart({ rows, sales, grouping }) {
     </div>
   );
 }
+
+function chartLabel(value, grouping) {
+  return grouping === "category"
+    ? value
+    : new Date(`${value}-02T12:00:00`).toLocaleDateString("pt-BR", {
+        month: "short",
+        year: "2-digit",
+      });
+}
+
+function LineChart({ values, sales, grouping }) {
+  const width = Math.max(660, values.length * 104);
+  const height = 300;
+  const left = 84;
+  const right = width - 22;
+  const top = 22;
+  const bottom = 240;
+  const max = Math.max(1, ...values.flatMap((row) => sales ? [row.income] : [row.income, row.expense]));
+  const point = (value, index) => ({
+    x: values.length === 1 ? (left + right) / 2 : left + (index * (right - left)) / (values.length - 1),
+    y: bottom - (value / max) * (bottom - top),
+  });
+  const series = [
+    { key: "income", label: sales ? "Vendas" : "Receitas", color: "#8069cf" },
+    ...(!sales ? [{ key: "expense", label: "Despesas", color: "#e9a36f" }] : []),
+  ];
+  return (
+    <div className="chart-scroll">
+      <svg className="line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Gráfico de linhas">
+        {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+          const y = bottom - fraction * (bottom - top);
+          return <g key={fraction}><text x="0" y={y + 4}>{money(max * fraction)}</text><line x1={left} x2={right} y1={y} y2={y} className="line-grid" /></g>;
+        })}
+        {series.map((item) => {
+          const points = values.map((row, index) => point(row[item.key], index));
+          return <g key={item.key}>
+            <polyline points={points.map(({ x, y }) => `${x},${y}`).join(" ")} fill="none" stroke={item.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            {points.map(({ x, y }, index) => <circle key={values[index].key} cx={x} cy={y} r="5" fill={item.color} stroke="white" strokeWidth="2"><title>{`${values[index].key} — ${item.label}: ${money(values[index][item.key])}`}</title></circle>)}
+          </g>;
+        })}
+        {values.map((row, index) => <text className="line-x-label" key={row.key} x={point(0, index).x} y="274" textAnchor="middle">{chartLabel(row.key, grouping)}</text>)}
+      </svg>
+    </div>
+  );
+}
+
+function DonutChart({ values, sales, grouping }) {
+  const slices = values
+    .map((row) => ({ key: row.key, amount: sales ? row.income : row.income + row.expense }))
+    .filter((row) => row.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+  const total = slices.reduce((sum, row) => sum + row.amount, 0);
+  if (!slices.length) return <div className="empty-state">Sem valores para compor o gráfico.</div>;
+  const colors = ["#8069cf", "#e9a36f", "#55a69a", "#7293d2", "#d7829a", "#9e9a69", "#8e74aa"];
+  const stops = slices.reduce((result, slice, index) => {
+    const end = result.position + (slice.amount / total) * 100;
+    const stop = `${colors[index % colors.length]} ${result.position}% ${end}%`;
+    return {
+      position: end,
+      value: result.value ? `${result.value}, ${stop}` : stop,
+    };
+  }, { position: 0, value: "" }).value;
+  return (
+    <div className="donut-layout">
+      <div className="donut" style={{ background: `conic-gradient(${stops})` }} role="img" aria-label={`Composição por ${grouping === "category" ? "categoria" : "mês"}: ${money(total)}`}>
+        <div><span>Total</span><strong>{money(total)}</strong></div>
+      </div>
+      <div className="donut-legend">
+        {slices.map((slice, index) => <div key={slice.key} title={`${slice.key}: ${money(slice.amount)}`}><span><i style={{ background: colors[index % colors.length] }} />{chartLabel(slice.key, grouping)}</span><strong>{(slice.amount / total * 100).toFixed(0)}%</strong></div>)}
+      </div>
+    </div>
+  );
+}
+
 function Guide({ onStart, onExample }) {
   return (
     <>
