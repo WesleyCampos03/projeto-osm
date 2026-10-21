@@ -45,6 +45,6 @@ self.addEventListener('fetch', event => {
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: "./",
+  base: process.env.GITHUB_ACTIONS === "true" ? "/projeto-osm/" : "./",
   plugins: [react(), offlineCache()],
 });
