@@ -108,6 +108,7 @@ export default function App() {
     [online, setOnline] = useState(navigator.onLine);
   const [form, setForm] = useState(blank),
     [editing, setEditing] = useState(null),
+    [categoryMetric, setCategoryMetric] = useState("expense"),
     [showForm, setShowForm] = useState(false),
     [confirmation, setConfirmation] = useState(null);
   const [formError, setFormError] = useState("");
@@ -158,11 +159,20 @@ export default function App() {
     ),
     stats = summarize(filtered),
     sales = model === "vendas";
-  const categories = groupChartRows(filtered, "category", sales)
-      .map((group) => [group.key, sales ? group.income : group.expense])
+  const categoryType = sales ? "income" : categoryMetric,
+    categories = groupChartRows(filtered, "category", sales)
+      .map((group) => [group.key, group[categoryType]])
       .filter(([, amount]) => amount > 0)
       .sort((a, b) => b[1] - a[1]),
-    total = categories.reduce((sum, [, amount]) => sum + amount, 0);
+     total = categories.reduce((sum, [, amount]) => sum + amount, 0),
+     periodLabel =
+       period === "todos"
+         ? "Todo o período"
+         : new Date(`${period}-02T12:00:00`).toLocaleDateString("pt-BR", {
+             month: "long",
+             year: "numeric",
+           });
+
   const visible = filtered
     .filter((row) =>
       `${row.description} ${row.category}`
@@ -430,6 +440,11 @@ export default function App() {
                     ? "Adicione, edite ou importe registros. Os gráficos acompanham você."
                     : "Um passo de cada vez para construir seu primeiro dashboard."}
               </p>
+              {page === "dashboard" && (
+                <p className="print-context">
+                  Modelo: {sales ? "Vendas" : "Financeiro"} · Período: {periodLabel} · Agrupamento: {chartGrouping === "category" ? "Por categoria" : "Por mês"}
+                </p>
+              )}
             </div>
             <button
               className="button primary no-print"
@@ -482,9 +497,9 @@ export default function App() {
                     ))}
                   </select>
                 </label>
-                <button className="button subtle" onClick={() => download()}>
-                  <Icon name="download" size={17} />
-                  Exportar CSV
+                <button className="button subtle" onClick={() => download()} title="Exporta todos os registros, independentemente do filtro">
+<Icon name="download" size={17} />
+                   Exportar todos os dados
                 </button>
                 {page === "dashboard" && (
                   <button
@@ -634,15 +649,33 @@ export default function App() {
                     <div>
                       <h2>
                         {sales
-                          ? "De onde vêm as vendas?"
-                          : "Para onde vai o dinheiro?"}
+                          ? "Receitas por categoria"
+                          : categoryMetric === "expense"
+                            ? "Despesas por categoria"
+                            : "Receitas por categoria"}
                       </h2>
                       <p>
                         {sales
-                          ? "Receitas por categoria"
-                          : "Despesas por categoria"}
+                          ? "Valores de receitas agrupados por categoria"
+                          : "Selecione quais valores deseja analisar"}
                       </p>
                     </div>
+                    {!sales && (
+                      <div className="category-toggle" role="group" aria-label="Métrica por categoria">
+                        <button
+                          aria-pressed={categoryMetric === "expense"}
+                          onClick={() => setCategoryMetric("expense")}
+                        >
+                          Despesas
+                        </button>
+                        <button
+                          aria-pressed={categoryMetric === "income"}
+                          onClick={() => setCategoryMetric("income")}
+                        >
+                          Receitas
+                        </button>
+                      </div>
+                      )}
                   </div>
                   {!categories.length ? (
                     <div className="empty-state">

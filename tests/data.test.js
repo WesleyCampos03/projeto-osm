@@ -89,6 +89,19 @@ test("XLSX selects the first sheet with the required columns", async () => {
   assert.equal(rows[0].amount, 125.5);
 });
 
+test("XLSX rejects duplicate headers", async () => {
+  const sheet = XLSX.utils.aoa_to_sheet([
+    ["data", "descricao", "categoria", "tipo", "valor", "valor"],
+    ["2026-12-31", "Venda", "Produtos", "receita", 10, 20],
+  ]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, "Dados");
+  const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+  await assert.rejects(() =>
+    parseSpreadsheet({ size: buffer.length, arrayBuffer: async () => buffer }),
+  );
+});
+
 test("Brazilian dates are normalized and validated", () => {
   const rows = parseCsv(
     "data;descricao;categoria;tipo;valor\n31/12/2026;Venda;Produtos;receita;10,50",

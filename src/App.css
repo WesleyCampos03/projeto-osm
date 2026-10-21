@@ -736,6 +736,26 @@ h1 span {
 .bar:focus .bar-tooltip {
   display: block;
 }
+.category-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: #f4f1fa;
+  border-radius: 999px;
+}
+.category-toggle button {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: transparent;
+  color: #77698d;
+  font-size: 12px;
+  font-weight: 700;
+}
+.category-toggle button[aria-pressed="true"] {
+  background: #fff;
+  color: #7154bd;
+  box-shadow: 0 2px 5px #35304309;
+}
 .category-total {
   margin: 27px 0 23px;
 }
@@ -1449,6 +1469,12 @@ dd {
     animation: none !important;
   }
 }
+.print-context {
+  display: none;
+  color: #756d83;
+  font-size: 12px !important;
+  margin-top: 8px !important;
+}
 .offline-note {
   font-size: 14px;
   color: #7d738c;
@@ -1734,6 +1760,9 @@ footer {
   }
   .page-heading {
     margin-bottom: 20px;
+  }
+  .print-context {
+    display: block;
   }
   .metrics {
     grid-template-columns: repeat(3, 1fr);

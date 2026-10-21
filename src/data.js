@@ -227,6 +227,8 @@ export async function parseSpreadsheet(file) {
         .replace(/[\u0300-\u036f]/g, ""),
     );
     if (required.every((key) => headers.includes(key))) {
+      if (new Set(headers).size !== headers.length)
+        throw new Error(`Aba "${sheetName}": não use cabeçalhos duplicados.`);
       const rows = records.slice(1).filter((record) =>
         record.some((value) => String(value).trim()),
       );
