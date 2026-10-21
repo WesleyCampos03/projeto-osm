@@ -1974,3 +1974,31 @@ footer {
   background-size: 12px 8px;
   padding-right: 38px;
 }
+
+/* Keep dashboard filters smooth when switching between selected states. */
+.segmented button,
+.chart-grouping button,
+.category-toggle button,
+.chart-type button {
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1),
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.period select,
+.form-dialog select {
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1),
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .period select:hover,
+  .form-dialog select:hover {
+    transform: translateY(-1px);
+    border-color: #cfc3e8;
+    box-shadow: 0 3px 9px #6045bf12;
+  }
+}
