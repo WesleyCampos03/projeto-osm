@@ -6,6 +6,7 @@ import {
   summarize,
   groupChartRows,
   validateRows,
+  mergeRows,
   parseCsv,
   toCsv,
 } from "./data.js";
@@ -313,11 +314,16 @@ export default function App() {
       const imported = isExcel
         ? await parseExcelFile(file)
         : parseCsv(await file.text());
+      const merged = mergeRows(rows, imported);
       setConfirmation({
         type: "import",
-        rows: imported,
-        title: "Substituir os dados?",
-        text: `${imported.length} registros válidos da ${isExcel ? "primeira aba da planilha" : "planilha CSV"} serão importados, substituindo os dados atuais. Exporte um backup antes se quiser preservá-los.`,
+        rows: merged.rows,
+        title: merged.combinedCount
+          ? "Dados iguais encontrados"
+          : "Adicionar dados da planilha?",
+        text: merged.combinedCount
+          ? `Encontramos ${merged.combinedCount} registro(s) igual(is). Deseja continuar com o acréscimo? Os valores serão somados aos registros salvos, e ${merged.addedCount} registro(s) novo(s) serão adicionados. A comparação considera data, descrição, categoria e tipo; diferenças de maiúsculas, acentos e espaços são ignoradas.`
+          : `${merged.addedCount} registro(s) novo(s) serão adicionados aos seus dados salvos.`,
       });
     } catch (error) {
       setNotice(error.message);
@@ -364,7 +370,11 @@ export default function App() {
           : confirmation.rows,
       );
       setPeriod("todos");
-      setNotice("Dados carregados. Explore seu painel!");
+      setNotice(
+        confirmation.type === "import"
+          ? "Planilha mesclada. Registros iguais foram somados e os novos foram adicionados."
+          : "Dados carregados. Explore seu painel!",
+      );
     }
     close();
   }

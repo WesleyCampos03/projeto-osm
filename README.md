@@ -74,7 +74,7 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. O filtro de período também se aplica à tabela. Os cálculos são atualizados após cada alteração.
 
-**Importar planilha** lê a primeira aba de arquivos Excel `.xlsx` ou CSV, valida o arquivo e solicita confirmação antes de substituir os dados. Use as colunas data, descrição, categoria, tipo e valor (aceita nomes equivalentes em inglês). **Carregar exemplos** também substitui o conjunto atual. Exporte um backup antes dessas operações para preservar seus registros.
+**Importar planilha** lê a primeira aba de arquivos Excel `.xlsx` ou CSV, valida o arquivo e mescla os registros com os dados salvos. Registros com a mesma data, descrição, categoria e tipo são tratados como iguais; a importação avisa quantos encontrou e pede confirmação antes de somar os valores. Diferenças de maiúsculas, acentos e espaços são ignoradas. **Carregar exemplos** substitui o conjunto atual.
 
 **Exportar CSV** baixa todos os registros, inclusive os que não aparecem no filtro atual. O arquivo pode ser importado em outro navegador ou computador.
 
@@ -118,7 +118,7 @@ Regras de validação:
 - Valor positivo, até R$ 1 bilhão por registro, com até duas casas decimais e sem o símbolo R$.
 - Arquivo de até **2 MB**, com até **5.000 registros**.
 
-O importador aceita ponto e vírgula como separador e vírgula decimal, ou vírgula como separador e ponto decimal. Aceita textos entre aspas, aspas escapadas e cabeçalhos acentuados, como `descrição`. Arquivos inválidos não substituem os dados existentes.
+O importador aceita ponto e vírgula como separador e vírgula decimal, ou vírgula como separador e ponto decimal. Aceita textos entre aspas, aspas escapadas e cabeçalhos acentuados, como `descrição`. Arquivos inválidos não alteram os dados existentes.
 
 Baixe um modelo em **Meus dados → Baixar arquivo de exemplo**. Planilhas devem ser exportadas como CSV; arquivos XLSX não são importados diretamente.
 

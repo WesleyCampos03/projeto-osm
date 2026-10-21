@@ -122,6 +122,41 @@ export function validateRows(rows) {
     };
   });
 }
+
+function duplicateKey(row) {
+  const normalize = (value) =>
+    String(value)
+      .trim()
+      .toLocaleLowerCase("pt-BR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ");
+  return [row.date, normalize(row.description), normalize(row.category), row.type].join("\u0000");
+}
+
+export function mergeRows(existingRows, importedRows) {
+  const merged = existingRows.map((row) => ({ ...row }));
+  const indexes = new Map(merged.map((row, index) => [duplicateKey(row), index]));
+  let combinedCount = 0;
+
+  for (const row of importedRows) {
+    const key = duplicateKey(row);
+    const index = indexes.get(key);
+    if (index === undefined) {
+      indexes.set(key, merged.length);
+      merged.push({ ...row });
+      continue;
+    }
+    const amount = Math.round((merged[index].amount + row.amount) * 100) / 100;
+    if (amount > 1e9)
+      throw new Error(`A soma dos registros de "${row.description}" ultrapassa o limite de R$ 1 bilhão.`);
+    merged[index].amount = amount;
+    combinedCount++;
+  }
+
+  return { rows: validateRows(merged), combinedCount, addedCount: merged.length - existingRows.length };
+}
+
 export function parseCsv(text) {
   text = text.replace(/^\ufeff/, "");
   const delimiter = text.split(/\r?\n/)[0].includes(";") ? ";" : ",";
