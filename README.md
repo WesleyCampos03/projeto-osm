@@ -74,7 +74,7 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. O filtro de período também se aplica à tabela. Os cálculos são atualizados após cada alteração.
 
-**Importar planilha** lê a primeira aba de arquivos Excel `.xlsx` ou CSV, valida o arquivo e mescla os registros com os dados salvos. Registros com a mesma data, descrição, categoria e tipo são tratados como iguais; a importação avisa quantos encontrou e pede confirmação antes de somar os valores. Diferenças de maiúsculas, acentos e espaços são ignoradas. **Carregar exemplos** substitui o conjunto atual.
+**Importar planilha** lê a primeira aba de Excel `.xlsx` que tenha as colunas obrigatórias, ou um CSV. A importação mescla os registros com os dados salvos. Registros com a mesma data, descrição, categoria e tipo são tratados como iguais; a importação avisa quantos encontrou e pede confirmação antes de somar os valores. Diferenças de maiúsculas, acentos e espaços são ignoradas. **Carregar exemplos** substitui o conjunto atual.
 
 **Exportar CSV** baixa todos os registros, inclusive os que não aparecem no filtro atual. O arquivo pode ser importado em outro navegador ou computador.
 
@@ -96,11 +96,11 @@ No modelo Vendas, **cada linha de receita deve representar uma venda**. Registra
 
 Exemplo: duas vendas de R$ 200 e R$ 300, com uma despesa de R$ 100, resultam em R$ 500 de receitas, R$ 100 de despesas, R$ 400 de saldo, duas vendas e ticket médio de R$ 250.
 
-Os gráficos agrupam os valores por mês ou categoria. Colunas e linhas comparam receitas e despesas no modelo Financeiro. A rosca mostra a composição dos registros; a lista ao lado detalha despesas ou vendas por categoria.
+Os gráficos agrupam os valores por mês ou categoria. Colunas e linhas comparam receitas e despesas no modelo Financeiro. A rosca mostra a composição dos registros; a lista ao lado detalha receitas, despesas ou vendas por categoria.
 
 ## Formato do CSV
 
-São obrigatórias colunas equivalentes a `data`, `descricao`, `categoria`, `tipo` e `valor`. A ordem pode variar. A importação Excel lê a primeira aba; títulos e cabeçalhos devem estar na primeira linha. Os formatos aceitos são `.xlsx` e CSV.
+São obrigatórias colunas equivalentes a `data`, `descricao`, `categoria`, `tipo` e `valor`. A ordem pode variar. Em Excel, o sistema seleciona a primeira aba que contém essas colunas; títulos e cabeçalhos devem estar na primeira linha. Os formatos aceitos são `.xlsx` e CSV.
 
 ```csv
 data;descricao;categoria;tipo;valor
@@ -111,7 +111,7 @@ data;descricao;categoria;tipo;valor
 
 Regras de validação:
 
-- Data válida em **AAAA-MM-DD**.
+- Data válida em **AAAA-MM-DD** ou **DD/MM/AAAA**.
 - Descrição preenchida, com até 120 caracteres.
 - Categoria preenchida, com até 60 caracteres.
 - Tipo `receita` ou `despesa`.
@@ -120,7 +120,7 @@ Regras de validação:
 
 O importador aceita ponto e vírgula como separador e vírgula decimal, ou vírgula como separador e ponto decimal. Aceita textos entre aspas, aspas escapadas e cabeçalhos acentuados, como `descrição`. Arquivos inválidos não alteram os dados existentes.
 
-Baixe um modelo em **Meus dados → Baixar arquivo de exemplo**. Planilhas devem ser exportadas como CSV; arquivos XLSX não são importados diretamente.
+Baixe um modelo em **Meus dados → Baixar arquivo de exemplo**. Planilhas podem ser exportadas como CSV ou importadas diretamente como XLSX.
 
 ## Salvamento e backup
 

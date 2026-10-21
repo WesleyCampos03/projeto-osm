@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   parseCsv,
+  mergeRows,
   toCsv,
   validateRows,
   summarize,
@@ -64,6 +65,49 @@ test("comma delimited files support decimal points and quoted commas", () => {
   );
   assert.equal(rows[0].amount, 12.5);
   assert.equal(rows[0].description, "Venda, cliente A");
+});
+test("Brazilian dates are normalized and validated", () => {
+  const rows = parseCsv(
+    "data;descricao;categoria;tipo;valor\n31/12/2026;Venda;Produtos;receita;10,50",
+  );
+  assert.equal(rows[0].date, "2026-12-31");
+  assert.throws(() =>
+    parseCsv(
+      "data;descricao;categoria;tipo;valor\n31/02/2026;Venda;Produtos;receita;10,50",
+    ),
+  );
+});
+test("matching imported records are summed while new records are added", () => {
+  const existing = {
+    ...exampleRows[0],
+    date: "2026-12-31",
+    description: "Venda de camisetas",
+    category: "Produtos",
+    amount: 100,
+  };
+  const result = mergeRows([existing], [
+    {
+      id: "imported-match",
+      date: "2026-12-31",
+      description: "  Vendá de camisetas ",
+      category: " produtos ",
+      type: "receita",
+      amount: 25.5,
+    },
+    {
+      id: "imported-new",
+      date: "2026-12-31",
+      description: "Outra venda",
+      category: "Produtos",
+      type: "receita",
+      amount: 10,
+    },
+  ]);
+  assert.equal(result.combinedCount, 1);
+  assert.equal(result.addedCount, 1);
+  assert.equal(result.rows[0].amount, 125.5);
+  assert.equal(result.rows[0].id, existing.id);
+  assert.equal(result.rows.length, 2);
 });
 test("invalid data is rejected before replacing current records", () => {
   const valid = { ...exampleRows[0] };

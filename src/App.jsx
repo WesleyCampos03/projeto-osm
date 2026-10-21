@@ -23,10 +23,6 @@ const blank = {
 
 function parseExcelFile(file) {
   return readXlsxFile(file).then((sheets) => {
-    const rows = sheets[0]?.data || [];
-    if (rows.length < 2) {
-      throw new Error("A primeira aba precisa ter cabeçalho e pelo menos um registro.");
-    }
     const normalize = (value) =>
       String(value ?? "")
         .trim()
@@ -41,6 +37,19 @@ function parseExcelFile(file) {
       type: ["tipo", "type", "natureza"],
       amount: ["valor", "amount", "value", "total"],
     };
+    const sheet = sheets.find(({ data = [] }) => {
+      const headers = (data[0] || []).map(normalize);
+      return Object.values(aliases).every((names) =>
+        headers.some((header) => names.includes(header)),
+      );
+    });
+    if (!sheet)
+      throw new Error(
+        "Nenhuma aba contém as colunas obrigatórias de data, descrição, categoria, tipo e valor.",
+      );
+    const rows = sheet.data || [];
+    if (rows.length < 2)
+      throw new Error(`A aba "${sheet.name}" não contém registros.`);
     const headers = rows[0].map(normalize);
     const indexes = Object.fromEntries(
       Object.entries(aliases).map(([field, names]) => [
@@ -48,20 +57,6 @@ function parseExcelFile(file) {
         headers.findIndex((header) => names.includes(header)),
       ]),
     );
-    const missing = Object.entries(indexes)
-      .filter(([, index]) => index < 0)
-      .map(([field]) =>
-        ({
-          description: "descrição",
-          category: "categoria",
-          amount: "valor",
-          type: "tipo",
-          data: "data",
-        })[field],
-      );
-    if (missing.length) {
-      throw new Error(`Não encontrei as colunas: ${missing.join(", ")}.`);
-    }
     const excelDate = (value) => {
       if (value instanceof Date && !Number.isNaN(value.getTime()))
         return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
@@ -76,6 +71,8 @@ function parseExcelFile(file) {
         : text;
     };
     const dataRows = rows.slice(1).filter((row) => row.some((cell) => cell !== null && cell !== ""));
+    if (!dataRows.length)
+      throw new Error(`A aba "${sheet.name}" não contém registros.`);
     if (dataRows.length > 5000) throw new Error("Use até 5.000 registros.");
     const converted = dataRows.map((row) => {
       const read = (field) => row[indexes[field]];
@@ -189,6 +186,7 @@ export default function App() {
     [model, setModel] = useState("financeiro"),
     [period, setPeriod] = useState("todos"),
     [search, setSearch] = useState(""),
+    [categoryMetric, setCategoryMetric] = useState("expense"),
     [notice, setNotice] = useState(initial.warning),
     [saved, setSaved] = useState(false),
     [online, setOnline] = useState(navigator.onLine);
@@ -245,11 +243,19 @@ export default function App() {
     ),
     stats = summarize(filtered),
     sales = model === "vendas";
-  const categories = groupChartRows(filtered, "category", sales)
-      .map((group) => [group.key, sales ? group.income : group.expense])
+  const categoryType = sales ? "income" : categoryMetric,
+    categories = groupChartRows(filtered, "category", sales)
+      .map((group) => [group.key, group[categoryType]])
       .filter(([, amount]) => amount > 0)
       .sort((a, b) => b[1] - a[1]),
     total = categories.reduce((sum, [, amount]) => sum + amount, 0);
+  const periodLabel =
+    period === "todos"
+      ? "Todo o período"
+      : new Date(`${period}-02T12:00:00`).toLocaleDateString("pt-BR", {
+          month: "long",
+          year: "numeric",
+        });
   const visible = filtered
     .filter((row) =>
       `${row.description} ${row.category}`
@@ -544,6 +550,11 @@ export default function App() {
                     ? "Adicione, edite ou importe registros. Os gráficos acompanham você."
                     : "Um passo de cada vez para construir seu primeiro dashboard."}
               </p>
+              {page === "dashboard" && (
+                <p className="print-context">
+                  Modelo: {sales ? "Vendas" : "Financeiro"} · Período: {periodLabel} · Agrupamento: {chartGrouping === "category" ? "Por categoria" : "Por mês"}
+                </p>
+              )}
             </div>
             <button
               className="button primary no-print"
@@ -596,9 +607,13 @@ export default function App() {
                     ))}
                   </select>
                 </label>
-                <button className="button subtle" onClick={() => download()}>
+                <button
+                  className="button subtle"
+                  title="Exporta todos os registros, independentemente do filtro"
+                  onClick={() => download()}
+                >
                   <Icon name="download" size={17} />
-                  Exportar CSV
+                  Exportar todos os dados
                 </button>
               </div>
             </div>
@@ -756,15 +771,39 @@ export default function App() {
                     <div>
                       <h2>
                         {sales
-                          ? "De onde vêm as vendas?"
-                          : "Para onde vai o dinheiro?"}
+                          ? "Receitas por categoria"
+                          : categoryMetric === "expense"
+                            ? "Despesas por categoria"
+                            : "Receitas por categoria"}
                       </h2>
                       <p>
                         {sales
-                          ? "Receitas por categoria"
-                          : "Despesas por categoria"}
+                          ? "Valores de receitas agrupados por categoria"
+                          : "Selecione quais valores deseja analisar"}
                       </p>
                     </div>
+                    {!sales && (
+                      <div
+                        className="category-toggle"
+                        role="group"
+                        aria-label="Métrica por categoria"
+                      >
+                        <button
+                          type="button"
+                          aria-pressed={categoryMetric === "expense"}
+                          onClick={() => setCategoryMetric("expense")}
+                        >
+                          Despesas
+                        </button>
+                        <button
+                          type="button"
+                          aria-pressed={categoryMetric === "income"}
+                          onClick={() => setCategoryMetric("income")}
+                        >
+                          Receitas
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {!categories.length ? (
                     <div className="empty-state">
@@ -896,7 +935,7 @@ export default function App() {
                     onClick={() => fileInput.current.click()}
                   >
                     <Icon name="upload" size={17} />
-                    Importar planilha
+                    Importar CSV ou XLSX
                   </button>
                 </div>
               </div>
@@ -991,7 +1030,8 @@ export default function App() {
                   <strong>Primeira vez importando?</strong>
                   <p>
                     Importe Excel (.xlsx) ou CSV. Use colunas de data,
-                    descrição, categoria, tipo e valor; datas em AAAA-MM-DD e
+                    descrição, categoria, tipo e valor; datas em AAAA-MM-DD ou
+                    DD/MM/AAAA e
                     tipo receita ou despesa.
                   </p>
                   <button

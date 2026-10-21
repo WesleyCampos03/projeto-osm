@@ -65,6 +65,15 @@ export function groupChartRows(rows, grouping = "month", sales = false) {
   );
 }
 
+export function normalizeDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime()))
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  const date = String(value ?? "").trim();
+  const brazilian = date.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!brazilian) return date;
+  return `${brazilian[3]}-${brazilian[2].padStart(2, "0")}-${brazilian[1].padStart(2, "0")}`;
+}
+
 export function validateRows(rows) {
   if (!Array.isArray(rows) || rows.length > 5000)
     throw new Error("Use até 5.000 registros.");
@@ -73,7 +82,7 @@ export function validateRows(rows) {
     const line = i + 2;
     if (!row || typeof row !== "object")
       throw new Error(`Registro inválido na linha ${line}.`);
-    const date = String(row.date || ""),
+    const date = normalizeDate(row.date),
       parsed = new Date(`${date}T12:00:00Z`);
     if (
       !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
@@ -81,7 +90,7 @@ export function validateRows(rows) {
       parsed.toISOString().slice(0, 10) !== date
     )
       throw new Error(
-        `Linha ${line}: use uma data válida no formato AAAA-MM-DD.`,
+        `Linha ${line}: use uma data válida nos formatos AAAA-MM-DD ou DD/MM/AAAA.`,
       );
     const description = String(row.description || "").trim(),
       category = String(row.category || "").trim(),
