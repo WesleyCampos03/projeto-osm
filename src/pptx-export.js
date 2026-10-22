@@ -1,5 +1,5 @@
 import pptxgen from "pptxgenjs";
-import { palette, periodName, monthName, reportData } from "./presentation-utils.js";
+import { financialInsights, palette, periodName, monthName, reportData } from "./presentation-utils.js";
 
 export async function exportPowerPoint({ rows, sales, period }) {
   const data = reportData(rows, sales);
@@ -15,21 +15,23 @@ export async function exportPowerPoint({ rows, sales, period }) {
     bodyFontFace: "Aptos",
     lang: "pt-BR",
   };
+  const slideWidth = 13.333;
   const addFooter = (slide, page) => {
     slide.addText(`GESTÃO TECH  ·  ${periodName(period)}`, {
-      x: 0.55,
+      x: 1.5,
       y: 7.12,
-      w: 9,
+      w: 10.33,
       h: 0.18,
       fontFace: "Aptos",
       fontSize: 8,
       color: palette.muted,
       margin: 0,
+      align: "center",
     });
-    slide.addText(String(page).padStart(2, "0"), {
-      x: 12.15,
+    slide.addText(`${String(page).padStart(2, "0")} / 03`, {
+      x: 12.05,
       y: 7.08,
-      w: 0.55,
+      w: 0.75,
       h: 0.22,
       align: "right",
       fontFace: "Aptos",
@@ -40,9 +42,9 @@ export async function exportPowerPoint({ rows, sales, period }) {
   };
   const addHeading = (slide, eyebrow, title, subtitle) => {
     slide.addText(eyebrow.toUpperCase(), {
-      x: 0.65,
+      x: 0.8,
       y: 0.45,
-      w: 11.8,
+      w: 11.73,
       h: 0.2,
       fontFace: "Aptos",
       fontSize: 9,
@@ -50,27 +52,30 @@ export async function exportPowerPoint({ rows, sales, period }) {
       charSpacing: 1.4,
       color: palette.purple,
       margin: 0,
+      align: "center",
     });
     slide.addText(title, {
-      x: 0.65,
+      x: 0.8,
       y: 0.78,
-      w: 12,
+      w: 11.73,
       h: 0.48,
       fontFace: "Aptos Display",
       fontSize: 25,
       bold: true,
       color: palette.ink,
       margin: 0,
+      align: "center",
     });
     slide.addText(subtitle, {
-      x: 0.65,
+      x: 0.8,
       y: 1.34,
-      w: 12,
+      w: 11.73,
       h: 0.3,
       fontFace: "Aptos",
       fontSize: 11,
       color: palette.muted,
       margin: 0,
+      align: "center",
     });
   };
 
@@ -80,14 +85,14 @@ export async function exportPowerPoint({ rows, sales, period }) {
     x: 0,
     y: 0,
     w: 13.333,
-    h: 2.55,
+    h: 2.28,
     line: { color: palette.purple, transparency: 100 },
     fill: { color: palette.purple },
   });
   cover.addText("GESTÃO TECH  /  PAINEL EXECUTIVO", {
-    x: 0.68,
-    y: 0.48,
-    w: 8.5,
+    x: 0.8,
+    y: 0.36,
+    w: 11.73,
     h: 0.22,
     fontFace: "Aptos",
     fontSize: 10,
@@ -95,45 +100,48 @@ export async function exportPowerPoint({ rows, sales, period }) {
     charSpacing: 1.4,
     color: "E7E1F8",
     margin: 0,
+    align: "center",
   });
   cover.addText(sales ? "Visão de vendas" : "Visão financeira", {
-    x: 0.68,
-    y: 0.92,
-    w: 9.5,
+    x: 0.8,
+    y: 0.77,
+    w: 11.73,
     h: 0.72,
     fontFace: "Aptos Display",
-    fontSize: 33,
+    fontSize: 32,
     bold: true,
     color: palette.white,
     margin: 0,
+    align: "center",
   });
   cover.addText(periodName(period), {
-    x: 0.7,
-    y: 1.84,
-    w: 8,
+    x: 0.8,
+    y: 1.55,
+    w: 11.73,
     h: 0.28,
     fontFace: "Aptos",
     fontSize: 13,
     color: "F2EFFA",
     margin: 0,
+    align: "center",
   });
-  const metricX = 0.68;
-  const metricGap = 0.24;
-  const metricW = (12 - metricGap * 2) / 3;
+  const metricGap = 0.28;
+  const metricW = 3.65;
+  const metricX = (slideWidth - (metricW * 3 + metricGap * 2)) / 2;
   data.metrics.forEach(([label, value], index) => {
     const x = metricX + index * (metricW + metricGap);
     cover.addShape(pptx.ShapeType.roundRect, {
       x,
-      y: 3.18,
+      y: 2.92,
       w: metricW,
-      h: 2.05,
+      h: 1.72,
       rectRadius: 0.12,
       line: { color: palette.line, pt: 1 },
       fill: { color: palette.white },
     });
     cover.addText(label.toUpperCase(), {
       x: x + 0.25,
-      y: 3.52,
+      y: 3.24,
       w: metricW - 0.5,
       h: 0.25,
       fontFace: "Aptos",
@@ -145,11 +153,11 @@ export async function exportPowerPoint({ rows, sales, period }) {
     });
     cover.addText(value, {
       x: x + 0.25,
-      y: 4.02,
+      y: 3.77,
       w: metricW - 0.5,
       h: 0.55,
       fontFace: "Aptos Display",
-      fontSize: value.length > 17 ? 22 : 27,
+      fontSize: value.length > 17 ? 20 : 25,
       bold: true,
       color: palette.ink,
       margin: 0,
@@ -159,20 +167,21 @@ export async function exportPowerPoint({ rows, sales, period }) {
   cover.addText(
     `${rows.length} registros analisados  ·  Gerado em ${new Date().toLocaleDateString("pt-BR")}`,
     {
-      x: 0.7,
-      y: 6.55,
-      w: 11.6,
+      x: 0.8,
+      y: 6.52,
+      w: 11.73,
       h: 0.25,
       fontFace: "Aptos",
       fontSize: 10,
       color: palette.muted,
       margin: 0,
+      align: "center",
     },
   );
   addFooter(cover, 1);
 
   const evolution = pptx.addSlide();
-  evolution.background = { color: palette.white };
+  evolution.background = { color: palette.paper };
   addHeading(
     evolution,
     "Acompanhamento",
@@ -199,9 +208,9 @@ export async function exportPowerPoint({ rows, sales, period }) {
         : []),
     ];
     evolution.addChart(pptx.ChartType.bar, series, {
-      x: 0.78,
+      x: 0.8,
       y: 1.9,
-      w: 11.75,
+      w: 11.73,
       h: 4.55,
       catAxisLabelFontFace: "Aptos",
       catAxisLabelFontSize: 10,
@@ -227,8 +236,8 @@ export async function exportPowerPoint({ rows, sales, period }) {
       showCatAxisTitle: false,
       showBorder: false,
       showMarker: true,
-      chartArea: { fill: { color: palette.white }, border: { color: palette.white, pt: 0 } },
-      plotArea: { fill: { color: palette.white }, border: { color: palette.white, pt: 0 } },
+      chartArea: { fill: { color: palette.paper }, border: { color: palette.paper, pt: 0 } },
+      plotArea: { fill: { color: palette.paper }, border: { color: palette.paper, pt: 0 } },
       showCatAxis: true,
       showValAxis: true,
       showGridLines: true,
@@ -252,59 +261,113 @@ export async function exportPowerPoint({ rows, sales, period }) {
   breakdown.background = { color: palette.paper };
   addHeading(
     breakdown,
-    "Composição",
-    sales ? "Vendas por categoria" : "Despesas por categoria",
+    sales ? "Composição" : "Leitura financeira",
+    sales ? "Vendas por categoria" : "Sugestões e análises",
     sales
       ? "Categorias com maior participação na receita"
-      : "Categorias com maior participação nas despesas",
+      : "Leituras para ajudar você a entender os gastos",
   );
-  if (data.categories.length) {
-    breakdown.addChart(
-      pptx.ChartType.bar,
-      [
+  if (sales) {
+    if (data.categories.length) {
+      breakdown.addChart(
+        pptx.ChartType.bar,
+        [
+          {
+            name: "Vendas",
+            labels: data.categories.map(({ key }) => key),
+            values: data.categories.map(({ amount }) => amount),
+          },
+        ],
         {
-          name: sales ? "Vendas" : "Despesas",
-          labels: data.categories.map(({ key }) => key),
-          values: data.categories.map(({ amount }) => amount),
+          x: 0.8,
+          y: 1.9,
+          w: 11.73,
+          h: 4.55,
+          barDir: "bar",
+          catAxisLabelFontFace: "Aptos",
+          catAxisLabelFontSize: 11,
+          catAxisLabelColor: palette.ink,
+          catAxisLineShow: false,
+          catAxisMajorTickMark: "none",
+          valAxisLabelFontFace: "Aptos",
+          valAxisLabelFontSize: 9,
+          valAxisLabelColor: palette.muted,
+          valAxisMinVal: 0,
+          valAxisLabelFormatCode: '"R$" #,##0',
+          valGridLine: { color: palette.line, width: 1 },
+          chartColors: [palette.purple],
+          showLegend: false,
+          showValue: true,
+          dataLabelPosition: "outEnd",
+          dataLabelColor: palette.ink,
+          dataLabelFormatCode: '"R$" #,##0',
+          dataLabelFormat: "currency",
+          chartArea: { fill: { color: palette.paper }, border: { color: palette.paper, pt: 0 } },
+          plotArea: { fill: { color: palette.paper }, border: { color: palette.paper, pt: 0 } },
         },
-      ],
-      {
-        x: 0.85,
-        y: 1.85,
-        w: 11.55,
-        h: 4.65,
-        barDir: "bar",
-        catAxisLabelFontFace: "Aptos",
-        catAxisLabelFontSize: 11,
-        catAxisLabelColor: palette.ink,
-        catAxisLineShow: false,
-        catAxisMajorTickMark: "none",
-        valAxisLabelFontFace: "Aptos",
-        valAxisLabelFontSize: 9,
-        valAxisLabelColor: palette.muted,
-        valAxisMinVal: 0,
-        valAxisLabelFormatCode: '"R$" #,##0',
-        valGridLine: { color: palette.line, width: 1 },
-        chartColors: [sales ? palette.purple : palette.orange],
-        showLegend: false,
-        showValue: true,
-        dataLabelPosition: "outEnd",
-        dataLabelColor: palette.ink,
-        dataLabelFormatCode: '"R$" #,##0',
-        dataLabelFormat: "currency",
-        chartArea: { fill: { color: palette.paper }, border: { color: palette.paper, pt: 0 } },
-        plotArea: { fill: { color: palette.paper }, border: { color: palette.paper, pt: 0 } },
-      },
-    );
+      );
+    } else {
+      breakdown.addText("Não há valores para detalhar por categoria.", {
+        x: 1,
+        y: 3.5,
+        w: 11.33,
+        h: 0.4,
+        align: "center",
+        fontSize: 16,
+        color: palette.muted,
+      });
+    }
   } else {
-    breakdown.addText("Não há valores para detalhar por categoria.", {
-      x: 1,
-      y: 3.5,
-      w: 11,
-      h: 0.4,
-      align: "center",
-      fontSize: 16,
-      color: palette.muted,
+    const insights = financialInsights(rows, data.stats);
+    const cardX = 1.04;
+    const cardW = 11.25;
+    const cardH = insights.length > 3 ? 0.96 : 1.08;
+    const cardGap = 0.16;
+    const startY = insights.length > 3 ? 1.83 : 2.05;
+    insights.forEach(({ title, detail }, index) => {
+      const y = startY + index * (cardH + cardGap);
+      breakdown.addShape(pptx.ShapeType.roundRect, {
+        x: cardX,
+        y,
+        w: cardW,
+        h: cardH,
+        rectRadius: 0.1,
+        line: { color: palette.line, pt: 1 },
+        fill: { color: palette.white },
+      });
+      breakdown.addShape(pptx.ShapeType.rect, {
+        x: cardX + 0.16,
+        y: y + 0.16,
+        w: 0.045,
+        h: cardH - 0.32,
+        line: { color: index === 1 ? palette.orange : palette.purple, transparency: 100 },
+        fill: { color: index === 1 ? palette.orange : palette.purple },
+      });
+      breakdown.addText(title, {
+        x: cardX + 0.36,
+        y: y + 0.16,
+        w: cardW - 0.66,
+        h: 0.23,
+        fontFace: "Aptos",
+        fontSize: 12,
+        bold: true,
+        color: palette.ink,
+        margin: 0,
+        fit: "shrink",
+      });
+      breakdown.addText(detail, {
+        x: cardX + 0.36,
+        y: y + 0.44,
+        w: cardW - 0.66,
+        h: cardH - 0.51,
+        fontFace: "Aptos",
+        fontSize: 10.5,
+        color: palette.muted,
+        margin: 0,
+        valign: "mid",
+        breakLine: false,
+        fit: "shrink",
+      });
     });
   }
   addFooter(breakdown, 3);

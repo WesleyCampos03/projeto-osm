@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import { groupChartRows, money } from "./data.js";
-import { periodName, monthName, reportData } from "./presentation-utils.js";
+import { financialInsights, periodName, monthName, reportData } from "./presentation-utils.js";
 
 function pdfText(doc, text, x, y, options = {}) {
   doc.setFont(options.bold ? "helvetica" : "helvetica", options.bold ? "bold" : "normal");
@@ -171,62 +171,13 @@ function pdfCategories(doc, rows, sales) {
   });
 }
 
-function pdfFinancialInsights(doc, rows, stats) {
-  const categoryTotals = groupChartRows(rows, "category")
-    .map(({ key, expense }) => ({ key, amount: expense }))
-    .filter(({ amount }) => amount > 0)
-    .sort((a, b) => b.amount - a.amount);
-  const months = groupChartRows(rows, "month");
-  const monthlyChange = months.length > 1
-    ? months.at(-1).expense - months.at(-2).expense
-    : null;
-  const largestExpense = rows
-    .filter((row) => row.type === "despesa")
-    .sort((a, b) => b.amount - a.amount)[0];
-  const share = stats.income ? (stats.expense / stats.income) * 100 : null;
-  const cards = [];
-
-  cards.push({
-    title: share === null ? "Inclua receitas para ampliar a análise" : "Peso das despesas nas receitas",
-    detail: share === null
-      ? "Com entradas registradas, fica mais fácil entender quanto dos recebimentos está sendo usado nos gastos."
-      : `As despesas correspondem a ${share.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% das receitas. ${share > 85 ? "Revise custos recorrentes e avalie oportunidades de renegociação." : share > 60 ? "Acompanhe os principais custos para preservar seu saldo." : "Neste período, as despesas estão abaixo das receitas registradas."}`,
-  });
-  if (categoryTotals[0]) {
-    const top = categoryTotals[0];
-    const concentration = stats.expense ? (top.amount / stats.expense) * 100 : 0;
-    cards.push({
-      title: `Maior categoria: ${top.key}`,
-      detail: `${money(top.amount)} (${concentration.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% dos gastos). Confira os lançamentos e avalie se há custos que podem ser reduzidos.`,
-    });
-  }
-  if (largestExpense) {
-    cards.push({
-      title: "Maior lançamento individual",
-      detail: `${largestExpense.description} — ${largestExpense.category}: ${money(largestExpense.amount)}. Revise se o valor e a classificação estão corretos.`,
-    });
-  }
-  if (monthlyChange !== null) {
-    cards.push({
-      title: monthlyChange > 0 ? "Despesas aumentaram no mês mais recente" : monthlyChange < 0 ? "Despesas diminuíram no mês mais recente" : "Despesas estáveis no mês mais recente",
-      detail: monthlyChange === 0
-        ? "O total ficou igual ao mês anterior. Confira as categorias para entender a composição dos gastos."
-        : `Variação de ${money(Math.abs(monthlyChange))} em relação ao mês anterior. Compare os lançamentos recentes para identificar o que mudou.`,
-    });
-  }
-  if (!categoryTotals.length && share === null) {
-    cards.push({
-      title: "Sem despesas no período",
-      detail: "Adicione registros de despesas para ver categorias de maior peso e tendências de gastos.",
-    });
-  }
-
+function pdfFinancialInsights(doc, insights) {
   const x = 38;
   const width = 221;
   const top = 47;
-  const rowHeight = cards.length > 3 ? 32 : 39;
+  const rowHeight = insights.length > 3 ? 32 : 39;
   const gap = 4;
-  cards.slice(0, 4).forEach(({ title, detail }, index) => {
+  insights.forEach(({ title, detail }, index) => {
     const y = top + index * (rowHeight + gap);
     doc.setFillColor(255, 255, 255);
     doc.setDrawColor(232, 229, 239);
@@ -310,7 +261,7 @@ export function exportPdf({ rows, sales, period }) {
     3,
   );
   if (sales) pdfCategories(doc, rows, true);
-  else pdfFinancialInsights(doc, rows, data.stats);
+  else pdfFinancialInsights(doc, financialInsights(rows, data.stats));
 
   doc.save(`gestao-tech-${sales ? "vendas" : "financeiro"}.pdf`);
 }
