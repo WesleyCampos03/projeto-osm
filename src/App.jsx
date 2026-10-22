@@ -200,7 +200,6 @@ export default function App() {
     [comparisonPeriods, setComparisonPeriods] = useState(["", ""]),
     [categoryFilter, setCategoryFilter] = useState(""),
     [search, setSearch] = useState(""),
-    [categoryMetric, setCategoryMetric] = useState("expense"),
     [notice, setNotice] = useState(initial.warning),
     [saved, setSaved] = useState(false),
     [online, setOnline] = useState(navigator.onLine);
@@ -260,15 +259,23 @@ export default function App() {
     ),
     stats = summarize(filtered),
     sales = model === "vendas";
-  const categoryType = sales ? "income" : categoryMetric,
-    categories = groupChartRows(filtered, "category", sales)
-      .map((group) => [group.key, group[categoryType]])
+  const categoryOptions = [...new Set(rows.map((row) => row.category))].sort(
+      (a, b) => a.localeCompare(b, "pt-BR"),
+    );
+  const expenseCategories = groupChartRows(filtered, "category")
+      .map(({ key, expense }) => [key, expense])
       .filter(([, amount]) => amount > 0)
       .sort((a, b) => b[1] - a[1]),
-    categoryOptions = [...new Set(rows.map((row) => row.category))].sort(
-      (a, b) => a.localeCompare(b, "pt-BR"),
-    ),
-    total = categories.reduce((sum, [, amount]) => sum + amount, 0);
+    topExpense = expenseCategories[0],
+    expenseShare = stats.income > 0 ? (stats.expense / stats.income) * 100 : 0,
+    largestExpense = filtered
+      .filter((row) => row.type === "despesa")
+      .sort((a, b) => b.amount - a.amount)[0],
+    monthExpenseTotals = groupChartRows(filtered, "month").slice(-2),
+    monthlyExpenseChange =
+      monthExpenseTotals.length > 1
+        ? monthExpenseTotals[1].expense - monthExpenseTotals[0].expense
+        : null;
   const comparisonMonthA =
       (months.includes(comparisonPeriods[0]) && comparisonPeriods[0]) ||
       months.at(-2) ||
@@ -846,6 +853,13 @@ export default function App() {
                       <tbody>
                         {comparisonMetrics.map(([label, valueA, valueB]) => {
                           const difference = valueB - valueA;
+                          const isExpense = label === "Despesas";
+                          const changeTone =
+                            difference === 0
+                              ? "is-even"
+                              : (difference > 0) !== isExpense
+                                ? "is-good"
+                                : "is-bad";
                           const format = (value) =>
                             label === "Vendas registradas"
                               ? String(value)
@@ -856,8 +870,15 @@ export default function App() {
                               <td>{format(valueA)}</td>
                               <td>{format(valueB)}</td>
                               <td>
-                                {difference > 0 ? "+" : ""}
-                                {format(difference)}
+                                <span
+                                  className={`comparison-change ${changeTone}`}
+                                >
+                                  <span aria-hidden="true">
+                                    {difference > 0 ? "↑" : difference < 0 ? "↓" : "–"}
+                                  </span>
+                                  {difference > 0 ? "+" : ""}
+                                  {format(difference)}
+                                </span>
                               </td>
                             </tr>
                           );
@@ -950,104 +971,40 @@ export default function App() {
                     type={chartType}
                   />
                 </article>
-                <article className="panel">
+                <article className="panel spending-insights">
                   <div className="panel-heading">
                     <div>
-                      <h2>
-                        {sales
-                          ? "Receitas por categoria"
-                          : categoryMetric === "expense"
-                            ? "Despesas por categoria"
-                            : "Receitas por categoria"}
-                      </h2>
-                      <p>
-                        {sales
-                          ? "Valores de receitas agrupados por categoria"
-                          : "Selecione quais valores deseja analisar"}
-                      </p>
+                      <h2>{sales ? "Leituras das suas vendas" : "Sugestões para seus gastos"}</h2>
+                      <p>Observações calculadas com base nos registros do período.</p>
                     </div>
-                    {!sales && (
-                      <div
-                        className="category-toggle"
-                        role="group"
-                        aria-label="Métrica por categoria"
-                      >
-                        <button
-                          type="button"
-                          aria-pressed={categoryMetric === "expense"}
-                          onClick={() => setCategoryMetric("expense")}
-                        >
-                          Despesas
-                        </button>
-                        <button
-                          type="button"
-                          aria-pressed={categoryMetric === "income"}
-                          onClick={() => setCategoryMetric("income")}
-                        >
-                          Receitas
-                        </button>
-                      </div>
-                    )}
+                    <span className="insights-badge"><Icon name="sparkle" size={15} /> Análises</span>
                   </div>
-                  {!categories.length ? (
+                  {filtered.length === 0 ? (
                     <div className="empty-state">
-                      Nenhum registro neste período.
-                      <br />
-                      Adicione dados para explorar seu painel.
+                      Adicione registros para receber sugestões personalizadas.
+                    </div>
+                  ) : sales ? (
+                    <div className="spending-insight-list">
+                      <div className="spending-insight-card">
+                        <span className="spending-insight-icon purple"><Icon name="wallet" /></span>
+                        <div><strong>Ticket médio</strong><p>Suas {stats.count} vendas têm valor médio de <b>{money(stats.ticket)}</b>. Acompanhe esse número ao longo dos meses.</p></div>
+                      </div>
+                      {topExpense && <div className="spending-insight-card"><span className="spending-insight-icon orange"><Icon name="trend" /></span><div><strong>Principal saída</strong><p>{topExpense[0]} soma <b>{money(topExpense[1])}</b> e representa a maior categoria de despesas neste período.</p></div></div>}
                     </div>
                   ) : (
-                    <>
-                      <div className="category-total">
-                        <span>Total do período</span>
-                        <strong>{money(total)}</strong>
-                      </div>
-                      <div className="category-list">
-                        {categories.map(([category, amount], i) => (
-                          <div className="category-row" key={category}>
-                            <div>
-                              <span>
-                                <i
-                                  style={{
-                                    background: [
-                                      "#7860db",
-                                      "#ffad70",
-                                      "#459e93",
-                                      "#91a5ed",
-                                    ][i % 4],
-                                  }}
-                                />
-                                {category}
-                              </span>
-                              <strong>{money(amount)}</strong>
-                            </div>
-                            <svg
-                              className="category-bar"
-                              width="100%"
-                              height="16"
-                              role="img"
-                              aria-label={`${category}: ${money(amount)}`}
-                            >
-                              <rect
-                                width="100%"
-                                height="16"
-                                rx="8"
-                                fill="#f3eff9"
-                              />
-                              <rect
-                                width={`${(amount / total) * 100}%`}
-                                height="16"
-                                rx="8"
-                                fill={
-                                  ["#7860db", "#ffad70", "#459e93", "#91a5ed"][
-                                    i % 4
-                                  ]
-                                }
-                              />
-                            </svg>
-                          </div>
-                        ))}
-                      </div>
-                    </>
+                    <div className="spending-insight-list">
+                      {stats.income > 0 ? (
+                        <div className="spending-insight-card">
+                          <span className="spending-insight-icon purple"><Icon name="wallet" /></span>
+                          <div><strong>Quanto da receita foi gasto</strong><p>As despesas equivalem a <b>{expenseShare.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</b> das receitas. {expenseShare > 85 ? "Revise os custos recorrentes e veja quais podem ser renegociados." : expenseShare > 60 ? "Acompanhe os custos principais para preservar seu saldo." : "Seu gasto está abaixo das receitas registradas neste período."}</p></div>
+                        </div>
+                      ) : (
+                        <div className="spending-insight-card"><span className="spending-insight-icon purple"><Icon name="wallet" /></span><div><strong>Registre receitas para comparar</strong><p>Com entradas e saídas cadastradas, você poderá acompanhar quanto dos recebimentos está sendo usado nos gastos.</p></div></div>
+                      )}
+                      {topExpense && <div className="spending-insight-card"><span className="spending-insight-icon orange"><Icon name="trend" /></span><div><strong>Categoria que mais pesa</strong><p><b>{topExpense[0]}</b> concentra {stats.expense ? (topExpense[1] / stats.expense * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : 0}% das despesas ({money(topExpense[1])}). Confira se os lançamentos estão corretos e se há espaço para economizar.</p></div></div>}
+                      {monthlyExpenseChange !== null && <div className="spending-insight-card"><span className={`spending-insight-icon ${monthlyExpenseChange > 0 ? "orange" : "green"}`}><Icon name="sparkle" /></span><div><strong>{monthlyExpenseChange > 0 ? "Gastos aumentaram" : monthlyExpenseChange < 0 ? "Gastos diminuíram" : "Gastos estáveis"} no mês mais recente</strong><p>{monthlyExpenseChange === 0 ? "O total de despesas ficou igual ao mês anterior." : `A diferença para o mês anterior foi de ${money(Math.abs(monthlyExpenseChange))}. Compare os lançamentos recentes para entender o que mudou.`}</p></div></div>}
+                      {largestExpense && <p className="largest-expense-note">Maior lançamento: <b>{largestExpense.description}</b>, em {largestExpense.category} ({money(largestExpense.amount)}).</p>}
+                    </div>
                   )}
                 </article>
               </section>

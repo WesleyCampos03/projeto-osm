@@ -878,8 +878,9 @@ footer strong {
   margin-bottom: 23px;
   padding: 22px 24px;
   background: #fff;
-  border: 1px solid #eeeef4;
-  border-radius: 18px;
+  border: 1px solid #e9e5f1;
+  border-radius: 20px;
+  box-shadow: 0 10px 28px #36285008;
 }
 .comparison-heading {
   display: flex;
@@ -909,13 +910,15 @@ footer strong {
   font-size: 12px;
 }
 .comparison-controls select {
-  min-width: 145px;
-  border: 1px solid #e8e5ef;
-  border-radius: 10px;
-  padding: 9px 11px;
-  background: #fbfaff;
+  width: 160px;
+  min-width: 0;
+  border: 1px solid #e6e1ee;
+  border-radius: 11px;
+  padding: 9px 32px 9px 12px;
+  background-color: #fbfaff;
   color: #615b72;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 650;
 }
 .comparison-controls > span {
   padding-bottom: 9px;
@@ -923,37 +926,95 @@ footer strong {
 }
 .comparison-table-scroll {
   overflow-x: auto;
+  border: 1px solid #eeeaf4;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fcfbfe 0%, #fff 38%);
 }
 .comparison-table {
-  min-width: 580px;
+  width: 100%;
+  min-width: 570px;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 .comparison-table th,
 .comparison-table td {
-  padding: 10px 12px;
+  padding: 14px 16px;
   border-bottom: 1px solid #f0edf4;
   white-space: nowrap;
 }
 .comparison-table thead th {
-  color: #81778d;
-  font-size: 12px;
+  background: #f7f5fb;
+  color: #766d86;
+  font-size: 11px;
   font-weight: 700;
+  text-align: right;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+.comparison-table thead th:first-child {
+  border-radius: 13px 0 0 0;
+}
+.comparison-table thead th:last-child {
+  border-radius: 0 13px 0 0;
 }
 .comparison-table thead th:first-child,
 .comparison-table tbody th {
-  padding-left: 0;
+  padding-left: 18px;
   text-align: left;
 }
 .comparison-table tbody th {
   color: #615b72;
   font-weight: 700;
+  font-size: 13px;
 }
 .comparison-table tbody td {
   color: #615b72;
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-size: 13px;
+}
+.comparison-table tbody tr {
+  transition: background-color .18s ease;
+}
+.comparison-table tbody tr:hover {
+  background: #faf8fd;
+}
+.comparison-change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.comparison-change > span {
+  font-size: 14px;
+}
+.comparison-change.is-good {
+  color: #28796b;
+  background: #eaf7f3;
+}
+.comparison-change.is-bad {
+  color: #a65b39;
+  background: #fff0e8;
+}
+.comparison-change.is-even {
+  color: #716980;
+  background: #f1eff5;
 }
 .comparison-table tbody tr:last-child th,
 .comparison-table tbody tr:last-child td {
   border-bottom: 0;
+}
+.comparison-empty {
+  padding: 22px 14px;
+  border: 1px dashed #dfd9ea;
+  border-radius: 14px;
+  background: #fbfaff;
+  text-align: center;
 }
 .data-intro {
   display: flex;
@@ -2098,7 +2159,8 @@ footer {
 
 /* Use the same centered dropdown chevron across browser platforms. */
 .period select,
-.form-dialog select {
+.form-dialog select,
+.comparison-controls select {
   appearance: none;
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m2 2 4 4 4-4' fill='none' stroke='%23615b72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -2120,7 +2182,8 @@ footer {
     box-shadow 0.2s ease;
 }
 .period select,
-.form-dialog select {
+.form-dialog select,
+.comparison-controls select {
   transition:
     transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1),
     border-color 0.2s ease,
@@ -2129,9 +2192,174 @@ footer {
 }
 @media (hover: hover) and (pointer: fine) {
   .period select:hover,
-  .form-dialog select:hover {
+  .form-dialog select:hover,
+  .comparison-controls select:hover {
     transform: translateY(-1px);
     border-color: #cfc3e8;
     box-shadow: 0 3px 9px #6045bf12;
+  }
+}
+
+.spending-insights .panel-heading {
+  align-items: center;
+  margin-bottom: 20px;
+}
+.insights-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  border: 1px solid #ebe6f5;
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #7159b3;
+  background: #f6f3fc;
+  font-size: 11px;
+  font-weight: 750;
+}
+.spending-insight-list {
+  display: grid;
+  gap: 11px;
+}
+.spending-insight-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #f0edf5;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #fff 0%, #fcfbfe 100%);
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.spending-insight-card:hover {
+  transform: translateY(-2px);
+  border-color: #e4dcf2;
+  box-shadow: 0 8px 18px #3929560a;
+}
+.spending-insight-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 11px;
+}
+.spending-insight-icon.purple {
+  color: #7159c5;
+  background: #f0ecfb;
+}
+.spending-insight-icon.orange {
+  color: #c77745;
+  background: #fff0e7;
+}
+.spending-insight-icon.green {
+  color: #328275;
+  background: #eaf7f3;
+}
+.spending-insight-card strong {
+  display: block;
+  margin: 1px 0 4px;
+  color: #4b4359;
+  font-size: 13px;
+}
+.spending-insight-card p,
+.largest-expense-note {
+  margin: 0;
+  color: #81798e;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.spending-insight-card p b,
+.largest-expense-note b {
+  color: #554a68;
+  font-weight: 750;
+}
+.largest-expense-note {
+  padding: 4px 2px 0;
+}
+
+.comparison-controls select {
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.period select {
+  max-width: 160px;
+  min-height: 39px;
+  padding: 9px 34px 9px 12px;
+  font-size: 13px;
+}
+.chart-grouping button {
+  padding: 8px 12px;
+}
+.comparison-controls select:focus-visible {
+  outline: 3px solid #7760cf30;
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .comparison-controls select:hover {
+    transform: translateY(-1px);
+    border-color: #cfc3e8;
+    box-shadow: 0 4px 10px #6045bf12;
+  }
+}
+
+@media (max-width: 680px) {
+  .period select {
+    max-width: 100%;
+  }
+  .comparison-panel {
+    padding: 18px 14px;
+    border-radius: 17px;
+  }
+  .comparison-heading {
+    gap: 13px;
+  }
+  .comparison-heading h2 {
+    font-size: 16px;
+  }
+  .comparison-heading p {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .comparison-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr);
+    gap: 7px;
+    width: 100%;
+  }
+  .comparison-controls label {
+    min-width: 0;
+    font-size: 11px;
+  }
+  .comparison-controls select {
+    width: 100%;
+    max-width: 100%;
+    padding: 9px 28px 9px 9px;
+    background-position: right 9px center;
+    font-size: 12px;
+    text-overflow: ellipsis;
+  }
+  .comparison-controls > span {
+    align-self: end;
+    padding-bottom: 9px;
+    text-align: center;
+  }
+  .comparison-table th,
+  .comparison-table td {
+    padding: 12px 10px;
+  }
+  .comparison-table thead th:first-child,
+  .comparison-table tbody th {
+    padding-left: 13px;
+  }
+  .spending-insights .panel-heading {
+    gap: 8px;
+  }
+  .spending-insight-card {
+    padding: 12px;
+    gap: 9px;
+  }
+  .insights-badge {
+    padding: 5px 8px;
+    font-size: 10px;
   }
 }
