@@ -271,6 +271,20 @@ export default function App() {
     largestExpense = filtered
       .filter((row) => row.type === "despesa")
       .sort((a, b) => b.amount - a.amount)[0],
+    largestExpenseDate = largestExpense
+      ? new Date(`${largestExpense.date}T12:00:00`).toLocaleDateString("pt-BR", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      : "",
+    largestExpenseHasSameCategory = largestExpense
+      ? largestExpense.description.localeCompare(
+          largestExpense.category,
+          "pt-BR",
+          { sensitivity: "base" },
+        ) === 0
+      : false,
     monthExpenseTotals = groupChartRows(filtered, "month").slice(-2),
     monthlyExpenseChange =
       monthExpenseTotals.length > 1
@@ -1003,7 +1017,15 @@ export default function App() {
                       )}
                       {topExpense && <div className="spending-insight-card"><span className="spending-insight-icon orange"><Icon name="trend" /></span><div><strong>Categoria que mais pesa</strong><p><b>{topExpense[0]}</b> concentra {stats.expense ? (topExpense[1] / stats.expense * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : 0}% das despesas ({money(topExpense[1])}). Confira se os lançamentos estão corretos e se há espaço para economizar.</p></div></div>}
                       {monthlyExpenseChange !== null && <div className="spending-insight-card"><span className={`spending-insight-icon ${monthlyExpenseChange > 0 ? "orange" : "green"}`}><Icon name="sparkle" /></span><div><strong>{monthlyExpenseChange > 0 ? "Gastos aumentaram" : monthlyExpenseChange < 0 ? "Gastos diminuíram" : "Gastos estáveis"} no mês mais recente</strong><p>{monthlyExpenseChange === 0 ? "O total de despesas ficou igual ao mês anterior." : `A diferença para o mês anterior foi de ${money(Math.abs(monthlyExpenseChange))}. Compare os lançamentos recentes para entender o que mudou.`}</p></div></div>}
-                      {largestExpense && <p className="largest-expense-note">Maior lançamento: <b>{largestExpense.description}</b>, em {largestExpense.category} ({money(largestExpense.amount)}).</p>}
+                      {largestExpense && (
+                        <div className="largest-expense-note">
+                          <strong>Maior despesa deste período</strong>
+                          <p>
+                            <b>{largestExpense.description}</b> · {money(largestExpense.amount)} · {largestExpenseDate}
+                            {!largestExpenseHasSameCategory && <> · Categoria: {largestExpense.category}</>}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </article>
@@ -1370,10 +1392,7 @@ function ChartView({ rows, sales, grouping, type }) {
           )
           .join("; ")}
         style={{
-          minWidth: Math.max(
-            400,
-            122 + values.length * (grouping === "category" ? 120 : 95),
-          ),
+          minWidth: 132 + values.length * 78,
         }}
       >
         <div className="chart-grid">
