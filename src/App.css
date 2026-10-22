@@ -631,7 +631,7 @@ h1 span {
 }
 .chart-grouping button[aria-pressed="true"] {
   background: #fff;
-  color: #7154bd;
+  color: #7d69b3;
   box-shadow: 0 2px 5px #35304309;
 }
 .category-chart .chart-grid {
@@ -757,7 +757,7 @@ h1 span {
 }
 .category-toggle button[aria-pressed="true"] {
   background: #fff;
-  color: #7154bd;
+  color: #7d69b3;
   box-shadow: 0 2px 5px #35304309;
 }
 .category-total span {
@@ -944,7 +944,7 @@ footer strong {
 }
 .comparison-table thead th {
   background: #f7f5fb;
-  color: #766d86;
+  color: #7154bd;
   font-size: 11px;
   font-weight: 700;
   text-align: right;
@@ -963,9 +963,10 @@ footer strong {
   text-align: left;
 }
 .comparison-table tbody th {
-  color: #615b72;
+  color: #7154bd;
   font-weight: 700;
   font-size: 13px;
+  background: #faf8ff;
 }
 .comparison-table tbody td {
   color: #615b72;
@@ -973,23 +974,13 @@ footer strong {
   text-align: right;
   font-size: 13px;
 }
-.comparison-table tbody tr {
-  transition: background-color .22s ease, transform .22s ease;
-}
-.comparison-table tbody tr:hover {
-  background: #f2f6fa;
-  transform: translateX(2px);
-}
-.comparison-table tbody tr th,
-.comparison-table tbody tr td {
-  transition: color .22s ease, background-color .22s ease;
+.comparison-table tbody th,
+.comparison-table tbody td {
+  transition: background-color .18s ease;
 }
 .comparison-table tbody tr:hover th,
 .comparison-table tbody tr:hover td {
-  color: #4e647b;
-}
-.comparison-table tbody tr:hover th:first-child {
-  box-shadow: inset 3px 0 #a7bbd1;
+  background-color: #f1f7ff;
 }
 .comparison-change {
   display: inline-flex;
@@ -1001,11 +992,6 @@ footer strong {
   font-size: 12px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
-  transition: transform .22s ease, filter .22s ease;
-}
-.comparison-table tbody tr:hover .comparison-change {
-  transform: scale(1.035);
-  filter: saturate(1.12);
 }
 .comparison-change > span {
   font-size: 14px;
