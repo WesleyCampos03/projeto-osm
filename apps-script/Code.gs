@@ -1,5 +1,9 @@
 const TAB_NAME = "Gestao Tech";
 const HEADERS = ["Data", "Descrição", "Categoria", "Tipo", "Valor", "ID"];
+const CONFIG = {
+  sheetUrl: "COLE_AQUI_O_LINK_DA_PLANILHA",
+  accessCode: "DEFINA_AQUI_UM_CODIGO_COMPARTILHADO_LONGO",
+};
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile("Bridge")
@@ -17,7 +21,7 @@ function readSharedRows(accessCode) {
   lock.waitLock(15000);
   try {
     const rows = readRows_();
-    return { rows: rows, revision: revision_(rows) };
+    return { rows: rows, revision: revision_(rows), spreadsheetUrl: spreadsheet_().getUrl() };
   } finally {
     lock.releaseLock();
   }
@@ -41,27 +45,28 @@ function saveSharedRows(accessCode, proposedRows, baseRevision, baseRows) {
         conflicts: merge.conflicts,
         rows: current,
         revision: currentRevision,
+        spreadsheetUrl: spreadsheet_().getUrl(),
       };
     }
     const rows = validateRows_(merge.rows);
     writeRows_(rows);
     const nextRevision = revision_(rows);
-    return { conflict: false, rows: rows, revision: nextRevision };
+    return { conflict: false, rows: rows, revision: nextRevision, spreadsheetUrl: spreadsheet_().getUrl() };
   } finally {
     lock.releaseLock();
   }
 }
 
 function verifyAccessCode_(accessCode) {
-  const expected = PropertiesService.getScriptProperties().getProperty("ACCESS_CODE");
-  if (!expected) throw new Error("O responsável ainda não configurou o código de acesso compartilhado.");
-  if (String(accessCode || "") !== expected) throw new Error("Código de acesso incorreto.");
+  if (!CONFIG.accessCode || CONFIG.accessCode.indexOf("DEFINA_AQUI_") === 0)
+    throw new Error("O responsável ainda não configurou o código de acesso compartilhado.");
+  if (String(accessCode || "") !== CONFIG.accessCode) throw new Error("Código de acesso incorreto.");
 }
 
 function spreadsheet_() {
-  const id = PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID");
-  if (!id) throw new Error("O responsável ainda não configurou a planilha do sistema.");
-  return SpreadsheetApp.openById(id);
+  const match = String(CONFIG.sheetUrl || "").match(/\/spreadsheets\/d\/([\w-]+)/);
+  if (!match) throw new Error("O responsável ainda não configurou o link da planilha.");
+  return SpreadsheetApp.openById(match[1]);
 }
 
 function sheet_() {
