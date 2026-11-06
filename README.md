@@ -85,10 +85,10 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 1. Crie uma planilha Google para guardar os dados.
 2. Crie um projeto no Google Apps Script. Copie `apps-script/Code.gs` e `apps-script/Bridge.html` para arquivos com esses nomes no projeto.
-3. Em **Configurações do projeto → Propriedades do script**, adicione `SPREADSHEET_ID` com o ID da planilha e `ACCESS_CODE` com um código longo que você compartilhará com a equipe.
+3. No início de `Code.gs`, cole o link completo da planilha em `sheetUrl` e defina um código longo em `accessCode`. Esses são os dois únicos valores que precisam ser ajustados no script.
 4. No editor do Apps Script, execute `authorizeSpreadsheetAccess` uma vez e aceite a autorização da conta responsável.
 5. Em **Implantar → Nova implantação → App da Web**, escolha **Executar como: você** e permita acesso anônimo. Copie a URL terminada em `/exec`.
-6. Copie `.env.example` para `.env.local`, preencha `VITE_GOOGLE_BRIDGE_URL` e gere novamente o site (`npm run build`). Para hospedagem contínua, configure a mesma variável no ambiente de build da plataforma.
+6. Copie `.env.example` para `.env.local`, preencha `VITE_GOOGLE_BRIDGE_URL` e gere novamente o site (`npm run build`). Para hospedagem contínua, configure a mesma variável no ambiente de build da plataforma. `VITE_GOOGLE_SHEET_URL` é opcional; a URL da planilha é detectada automaticamente após conectar.
 
 As pessoas que usam o site não precisam de conta Google; elas informam apenas o código compartilhado da equipe. A conta Google é necessária somente para o responsável criar e manter o script. O endpoint é acessível sem login, então o código é a proteção dos dados: use um código longo e compartilhe-o apenas com pessoas autorizadas. O bloqueio do Apps Script serializa as gravações; alterações independentes são mescladas e duas edições concorrentes do mesmo registro são sinalizadas antes de qualquer sobrescrita. Edite a aba `Gestao Tech` pelo app para manter o controle de conflitos.
 

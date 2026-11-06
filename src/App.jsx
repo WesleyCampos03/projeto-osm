@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import readXlsxFile from "read-excel-file/browser";
 import { readGoogleRows, writeGoogleRows } from "./google-sheets.js";
 import {
@@ -15,6 +15,7 @@ import "./App.css";
 
 const KEY = "gestao-tech-data-v1";
 const GOOGLE_BRIDGE_URL = import.meta.env.VITE_GOOGLE_BRIDGE_URL || "";
+const GOOGLE_SHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_URL || "";
 const rowSignature = (rows) => JSON.stringify(rows.map(({ id, date, description, category, type, amount }) => ({ id, date, description, category, type, amount })));
 const blank = {
   date: "",
@@ -133,6 +134,12 @@ function Icon({ name, size = 20 }) {
         <path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4" />
       </>
     ),
+    external: (
+      <>
+        <path d="M14 4h6v6M20 4l-9 9" />
+        <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
+      </>
+    ),
     trend: <path d="m3 17 6-6 4 4 8-10M15 5h6v6" />,
     wallet: (
       <>
@@ -166,6 +173,110 @@ function Icon({ name, size = 20 }) {
     >
       {paths[name]}
     </svg>
+  );
+}
+
+function AnimatedSelect({ label, value, options, onChange, className = "" }) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const root = useRef(null);
+  const menuId = useId();
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
+  const selected = options[selectedIndex];
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOutside = (event) => {
+      if (!root.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [open]);
+
+  function toggle() {
+    setActiveIndex(selectedIndex);
+    setOpen((current) => !current);
+  }
+
+  function choose(option) {
+    onChange(option.value);
+    setActiveIndex(options.indexOf(option));
+    setOpen(false);
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      setOpen(false);
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      setOpen(true);
+      setActiveIndex((index) => {
+        const start = open ? index : selectedIndex;
+        return (start + direction + options.length) % options.length;
+      });
+      return;
+    }
+    if (open && event.key === "Home") {
+      event.preventDefault();
+      setActiveIndex(0);
+    } else if (open && event.key === "End") {
+      event.preventDefault();
+      setActiveIndex(options.length - 1);
+    } else if (open && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      if (options[activeIndex]) choose(options[activeIndex]);
+    }
+  }
+
+  return (
+    <div className={`animated-select ${className}`} ref={root}>
+      <button
+        type="button"
+        className="animated-select-trigger"
+        role="combobox"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-activedescendant={open ? `${menuId}-option-${activeIndex}` : undefined}
+        title={selected?.label}
+        onClick={toggle}
+        onKeyDown={handleKeyDown}
+      >
+        <span>{selected?.label}</span>
+        <svg viewBox="0 0 12 8" aria-hidden="true">
+          <path d="m2 2 4 4 4-4" />
+        </svg>
+      </button>
+      <div
+        className={`animated-select-menu ${open ? "is-open" : ""}`}
+        id={menuId}
+        role="listbox"
+        aria-label={label}
+        aria-hidden={!open}
+        inert={!open}
+      >
+        {options.map((option, index) => (
+          <button
+            key={option.value || "all"}
+            type="button"
+            className={`animated-select-option ${index === activeIndex ? "is-active" : ""} ${option.value === value ? "is-selected" : ""}`}
+            id={`${menuId}-option-${index}`}
+            role="option"
+            aria-selected={option.value === value}
+            tabIndex={-1}
+            onMouseEnter={() => setActiveIndex(index)}
+            onClick={() => choose(option)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 function monthLabel(month) {
@@ -221,6 +332,7 @@ export default function App() {
     [saved, setSaved] = useState(false),
     [online, setOnline] = useState(navigator.onLine);
   const [googleStatus, setGoogleStatus] = useState("desconectado");
+  const [googleSheetUrl, setGoogleSheetUrl] = useState(GOOGLE_SHEET_URL);
   const [accessCode, setAccessCode] = useState(loadSharedAccessCode);
   const [syncConflict, setSyncConflict] = useState(null);
   const syncRef = useRef({ bridgeUrl: "", accessCode: "", revision: "", baselineRows: [], ready: false, busy: false });
@@ -282,6 +394,7 @@ export default function App() {
           sync.baselineRows,
         );
         if (result.conflict) {
+          if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
           sync.ready = false;
           setSyncConflict({
             baselineRows: sync.baselineRows,
@@ -298,6 +411,7 @@ export default function App() {
         }
         sync.revision = result.revision;
         sync.baselineRows = validateRows(result.rows);
+        if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
         if (rowSignature(proposedRows) !== rowSignature(result.rows)) {
           skipSyncRef.current = true;
           updateRowsRef.current(sync.baselineRows, { remote: true });
@@ -330,6 +444,7 @@ export default function App() {
       try {
         const result = await readGoogleRows(sync.bridgeUrl, sync.accessCode);
         const remoteRows = validateRows(result.rows);
+        if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
         const current = rowSignature(rows);
         const incoming = rowSignature(remoteRows);
         if (current !== incoming) {
@@ -470,6 +585,7 @@ export default function App() {
       setGoogleStatus("sincronizando");
       const result = await readGoogleRows(GOOGLE_BRIDGE_URL, accessCode.trim());
       const remoteRows = validateRows(result.rows);
+      if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
       if (hasPendingLocalChanges) {
         const saveResult = await writeGoogleRows(
           GOOGLE_BRIDGE_URL,
@@ -479,6 +595,7 @@ export default function App() {
           previous.baselineRows,
         );
         if (saveResult.conflict) {
+          if (saveResult.spreadsheetUrl) setGoogleSheetUrl(saveResult.spreadsheetUrl);
           syncRef.current = {
             bridgeUrl: GOOGLE_BRIDGE_URL,
             accessCode: accessCode.trim(),
@@ -498,6 +615,7 @@ export default function App() {
           return;
         }
         const savedRows = validateRows(saveResult.rows);
+        if (saveResult.spreadsheetUrl) setGoogleSheetUrl(saveResult.spreadsheetUrl);
         syncRef.current = {
           bridgeUrl: GOOGLE_BRIDGE_URL,
           accessCode: accessCode.trim(),
@@ -728,6 +846,7 @@ export default function App() {
         setGoogleStatus("sincronizando");
         const result = await writeGoogleRows(sync.bridgeUrl, sync.accessCode, rows, sync.revision, sync.baselineRows);
         if (result.conflict) {
+          if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
           sync.ready = false;
           setSyncConflict({
             baselineRows: sync.baselineRows,
@@ -741,6 +860,7 @@ export default function App() {
           setGoogleStatus("conflito");
           setNotice("A planilha mudou durante a preparação da migração. Escolha qual versão manter.");
         } else {
+          if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
           syncRef.current = {
             ...sync,
             revision: result.revision,
@@ -1026,17 +1146,12 @@ export default function App() {
               <div className="toolbar-actions">
                 <label className="period">
                   Período
-                  <select
+                  <AnimatedSelect
+                    label="Período"
                     value={period}
-                    onChange={(e) => setPeriod(e.target.value)}
-                  >
-                    <option value="todos">Todo o período</option>
-                    {months.map((month) => (
-                      <option key={month} value={month}>
-                        {monthLabel(month)}
-                      </option>
-                    ))}
-                  </select>
+                    options={[{ value: "todos", label: "Todo o período" }, ...months.map((month) => ({ value: month, label: monthLabel(month) }))]}
+                    onChange={setPeriod}
+                  />
                 </label>
                 <button
                   className="button subtle"
@@ -1132,37 +1247,25 @@ export default function App() {
                   </div>
                   {months.length > 1 && (
                     <div className="comparison-controls">
-                      <label>
-                        Período A
-                        <select
+                      <div className="comparison-period-control">
+                        <span>Período A</span>
+                        <AnimatedSelect
+                          label="Período A"
                           value={comparisonMonthA}
-                          onChange={(event) =>
-                            changeComparisonPeriod(0, event.target.value)
-                          }
-                        >
-                          {months.map((month) => (
-                            <option key={month} value={month}>
-                              {monthLabel(month)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                          options={months.map((month) => ({ value: month, label: monthLabel(month) }))}
+                          onChange={(value) => changeComparisonPeriod(0, value)}
+                        />
+                      </div>
                       <span aria-hidden="true">×</span>
-                      <label>
-                        Período B
-                        <select
+                      <div className="comparison-period-control">
+                        <span>Período B</span>
+                        <AnimatedSelect
+                          label="Período B"
                           value={comparisonMonthB}
-                          onChange={(event) =>
-                            changeComparisonPeriod(1, event.target.value)
-                          }
-                        >
-                          {months.map((month) => (
-                            <option key={month} value={month}>
-                              {monthLabel(month)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                          options={months.map((month) => ({ value: month, label: monthLabel(month) }))}
+                          onChange={(value) => changeComparisonPeriod(1, value)}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1466,20 +1569,14 @@ export default function App() {
                     <span className="count-badge">{visible.length}</span>
                   </h2>
                   <div className="table-filters">
-                    <label className="category-filter">
-                      <span className="sr-only">Filtrar por categoria</span>
-                      <select
+                    <div className="category-filter">
+                      <AnimatedSelect
+                        label="Filtrar por categoria"
                         value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                      >
-                        <option value="">Todas as categorias</option>
-                        {categoryOptions.map((category) => (
-                          <option key={category} value={category}>
-                            {category}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                        options={[{ value: "", label: "Todas as categorias" }, ...categoryOptions.map((category) => ({ value: category, label: category }))]}
+                        onChange={setCategoryFilter}
+                      />
+                    </div>
                     <label className="search-label">
                       <span className="sr-only">
                         Buscar descrição ou categoria
@@ -1570,13 +1667,25 @@ export default function App() {
                     DD/MM/AAAA e
                     tipo ganho ou gasto.
                   </p>
-                  <button
-                    className="text-button"
-                    onClick={() => download(true)}
-                  >
-                    Baixar arquivo de exemplo
-                    <Icon name="download" size={16} />
-                  </button>
+                  <div className="csv-help-actions">
+                    <button
+                      className="text-button"
+                      onClick={() => download(true)}
+                    >
+                      Baixar arquivo de exemplo
+                      <Icon name="download" size={16} />
+                    </button>
+                    <button
+                      className="text-button"
+                      type="button"
+                      disabled={!googleSheetUrl}
+                      title={googleSheetUrl ? "Abrir a planilha compartilhada" : "Conecte a planilha compartilhada para abrir"}
+                      onClick={() => googleSheetUrl && window.open(googleSheetUrl, "_blank", "noopener,noreferrer")}
+                    >
+                      Abrir planilha no Google Sheets
+                      <Icon name="external" size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </>
@@ -1671,13 +1780,13 @@ export default function App() {
             <div className="form-columns">
               <label>
                 Tipo
-                <select
+                <AnimatedSelect
+                  label="Tipo"
                   value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value })}
-                >
-                  <option value="receita">Ganho</option>
-                  <option value="despesa">Gasto</option>
-                </select>
+                  options={[{ value: "receita", label: "Ganho" }, { value: "despesa", label: "Gasto" }]}
+                  onChange={(value) => setForm({ ...form, type: value })}
+                  className="form-select"
+                />
               </label>
               <label>
                 Valor (R$)
