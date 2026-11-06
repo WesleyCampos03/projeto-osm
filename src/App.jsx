@@ -3,7 +3,6 @@ import readXlsxFile from "read-excel-file/browser";
 import {
   openGoogleSheetPicker,
   prepareGoogleLibraries,
-  createExampleGoogleSheet,
   readGoogleRows,
   requestGoogleAccessToken,
   writeGoogleRows,
@@ -553,6 +552,11 @@ export default function App() {
       .filter(([, amount]) => amount > 0)
       .sort((a, b) => b[1] - a[1]),
     topExpense = expenseCategories[0],
+    salesCategories = groupChartRows(filtered, "category", true)
+      .map(({ key, income }) => [key, income])
+      .filter(([, amount]) => amount > 0)
+      .sort((a, b) => b[1] - a[1]),
+    topSalesCategory = salesCategories[0],
     expenseShare = stats.income > 0 ? (stats.expense / stats.income) * 100 : 0,
     largestExpense = filtered
       .filter((row) => row.type === "despesa")
@@ -720,28 +724,6 @@ export default function App() {
       setNotice(`Conectado à planilha${sheet.name ? ` “${sheet.name}”` : ""}.`);
     } catch (error) {
       syncRef.current = { spreadsheetId: selectedSheet?.id || "", accessToken: "", revision: "", baselineRows: [], ready: false, busy: false };
-      setGoogleStatus("erro");
-      setNotice(error.message);
-    }
-  }
-
-  async function createExampleSheet() {
-    if (!GOOGLE_CLIENT_ID) {
-      setNotice("A conexão com Google ainda não foi configurada neste sistema.");
-      return;
-    }
-    if (syncRef.current.busy) {
-      setNotice("Aguarde a gravação em andamento antes de criar a planilha de exemplo.");
-      return;
-    }
-    setNotice("Autorize sua conta Google para criar o modelo de exemplo.");
-    try {
-      const token = await requestGoogleAccessToken(GOOGLE_CLIENT_ID);
-      setNotice("Criando e formatando a planilha de exemplo no seu Google Drive…");
-      const sheet = await createExampleGoogleSheet(token, exampleRows);
-      setNotice("Modelo criado. Abrindo a planilha no Google Sheets…");
-      window.location.assign(sheet.spreadsheetUrl);
-    } catch (error) {
       setGoogleStatus("erro");
       setNotice(error.message);
     }
@@ -1518,7 +1500,7 @@ export default function App() {
                         <span className="spending-insight-icon purple"><Icon name="wallet" /></span>
                         <div><strong>Ticket médio</strong><p>Suas {stats.count} vendas têm valor médio de <b>{money(stats.ticket)}</b>. Acompanhe esse número ao longo dos meses.</p></div>
                       </div>
-                      {topExpense && <div className="spending-insight-card"><span className="spending-insight-icon orange"><Icon name="trend" /></span><div><strong>Principal gasto</strong><p>{topExpense[0]} soma <b>{money(topExpense[1])}</b> e representa a maior categoria de gastos neste período.</p></div></div>}
+                      {topSalesCategory && <div className="spending-insight-card"><span className="spending-insight-icon orange"><Icon name="trend" /></span><div><strong>Categoria com mais ganhos</strong><p><b>{topSalesCategory[0]}</b> soma <b>{money(topSalesCategory[1])}</b> e lidera os ganhos por categoria neste período.</p></div></div>}
                     </div>
                   ) : (
                     <div className="spending-insight-list">
@@ -1779,16 +1761,6 @@ export default function App() {
                     >
                       Baixar arquivo de exemplo
                       <Icon name="download" size={16} />
-                    </button>
-                    <button
-                      className="text-button"
-                      type="button"
-                      disabled={!GOOGLE_CLIENT_ID || googleStatus === "sincronizando"}
-                      title={!GOOGLE_CLIENT_ID ? "A conexão Google ainda não foi configurada" : "Cria uma cópia formatada com dados de exemplo no Google Drive"}
-                      onClick={createExampleSheet}
-                    >
-                      Criar modelo de exemplo no Google Sheets
-                      <Icon name="external" size={16} />
                     </button>
                   </div>
                 </div>

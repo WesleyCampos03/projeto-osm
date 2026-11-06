@@ -390,20 +390,6 @@ async function replaceData(token, spreadsheetId, rows) {
   return readGoogleRows(token, spreadsheetId);
 }
 
-export async function createExampleGoogleSheet(token, rows) {
-  const title = "Gestão Tech - Modelo de exemplo";
-  const created = await googleRequest(token, "https://sheets.googleapis.com/v4/spreadsheets", {
-    method: "POST",
-    body: JSON.stringify({
-      properties: { title },
-      sheets: [{ properties: { title: SHEET_NAME, gridProperties: { rowCount: 1000, columnCount: HEADERS.length } } }],
-    }),
-  });
-  if (!created.spreadsheetId) throw new Error("O Google não retornou o endereço da planilha de exemplo.");
-  const saved = await replaceData(token, created.spreadsheetId, rows);
-  return { ...saved, id: created.spreadsheetId, name: title, spreadsheetUrl: spreadsheetUrl(created.spreadsheetId) };
-}
-
 export async function writeGoogleRows(token, spreadsheetId, proposedRows, baseRevision, baseRows) {
   if (rowRevision(baseRows) !== String(baseRevision || ""))
     throw new Error("A cópia local ficou inconsistente. Sincronize novamente antes de salvar.");
