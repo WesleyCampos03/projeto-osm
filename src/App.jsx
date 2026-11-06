@@ -2,6 +2,8 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import readXlsxFile from "read-excel-file/browser";
 import {
   createPersonalGoogleSheet,
+  chooseGoogleSpreadsheet,
+  importGoogleSpreadsheet,
   prepareGoogleIdentity,
   readGoogleRows,
   requestGoogleAccessToken,
@@ -21,7 +23,10 @@ import "./App.css";
 
 const KEY = "gestao-tech-data-v1";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
+const GOOGLE_APP_ID = import.meta.env.VITE_GOOGLE_APP_ID || "";
 const GOOGLE_CONFIGURED = Boolean(GOOGLE_CLIENT_ID);
+const GOOGLE_PICKER_CONFIGURED = Boolean(GOOGLE_API_KEY && GOOGLE_APP_ID);
 const SELECTED_SHEET_KEY = "gestao-tech-personal-sheet-v1";
 const rowSignature = (rows) => JSON.stringify(rows.map(({ id, date, description, category, type, amount }) => ({ id, date, description, category, type, amount })));
 const blank = {
@@ -623,7 +628,6 @@ export default function App() {
       sheetWindow.document.title = "Preparando sua planilha";
       sheetWindow.document.body.textContent = "Preparando sua planilha do Gestão Tech…";
     }
-    const previous = { ...syncRef.current, baselineRows: [...syncRef.current.baselineRows] };
     syncRef.current.ready = false;
     setNotice(openSheet ? "Entre na conta Google. Vamos preparar e abrir sua planilha pessoal." : "Entrando na conta Google e sincronizando sua planilha…");
     try {
@@ -651,53 +655,12 @@ export default function App() {
         sheetWindow.opener = null;
         sheetWindow.location.replace(sheet.url || result.spreadsheetUrl);
       }
-      const hasPendingLocalChanges = previous.spreadsheetId === sheet.id &&
-        previous.revision &&
-        rowSignature(previous.baselineRows) !== rowSignature(rows);
-      syncRef.current.ready = false;
-      setGoogleStatus("sincronizando");
       const remoteRows = validateRows(result.rows);
       if (result.spreadsheetUrl) {
         sheet = { ...sheet, url: result.spreadsheetUrl };
         rememberSelectedSheet(sheet);
         setSelectedSheet(sheet);
         setGoogleSheetUrl(result.spreadsheetUrl);
-      }
-      if (hasPendingLocalChanges) {
-        const saveResult = await writeGoogleRows(token, sheet.id, rows, previous.revision, previous.baselineRows);
-        if (saveResult.conflict) {
-          syncRef.current = {
-            spreadsheetId: sheet.id,
-            accessToken: token,
-            revision: saveResult.revision,
-            baselineRows: validateRows(saveResult.rows),
-            ready: false,
-            busy: false,
-          };
-          setSyncConflict({
-            baselineRows: previous.baselineRows,
-            localRows: rows,
-            remoteRows: validateRows(saveResult.rows),
-            revision: saveResult.revision,
-            conflicts: saveResult.conflicts || [],
-          });
-          setGoogleStatus("conflito");
-          return;
-        }
-        const savedRows = validateRows(saveResult.rows);
-        syncRef.current = {
-          spreadsheetId: sheet.id,
-          accessToken: token,
-          revision: saveResult.revision,
-          baselineRows: savedRows,
-          ready: true,
-          busy: false,
-        };
-        skipSyncRef.current = true;
-        updateRows(savedRows, { remote: true });
-        setGoogleStatus("conectado");
-        setNotice("Alterações locais foram recuperadas e mescladas com a planilha.");
-        return;
       }
       syncRef.current = {
         spreadsheetId: sheet.id,
@@ -707,40 +670,70 @@ export default function App() {
         ready: false,
         busy: false,
       };
-      if (!remoteRows.length && rows.length) {
-        setConfirmation({
-          type: "shared-migrate",
-          title: "Enviar seus dados para a planilha?",
-          text: `A aba Gestao Tech está vazia. Enviar os ${rows.length} registros salvos neste navegador para sua planilha Google?`,
-        });
-        setGoogleStatus("desconectado");
-        return;
-      }
-      if (remoteRows.length && rows.length && rowSignature(remoteRows) !== rowSignature(rows)) {
-        setSyncConflict({
-          baselineRows: [],
-          localRows: rows,
-          remoteRows,
-          revision: result.revision,
-          conflicts: [],
-          bootstrap: true,
-        });
-        setGoogleStatus("conflito");
-        setNotice("Há dados locais e dados compartilhados diferentes. Escolha como continuar.");
-        return;
-      }
       syncRef.current.ready = true;
       skipSyncRef.current = true;
       updateRows(remoteRows, { remote: true });
       setGoogleStatus("conectado");
       setNotice(openSheet && !sheetWindow
         ? `Sua planilha${sheet.name ? ` “${sheet.name}”` : ""} está pronta. Use “Abrir planilha” para editá-la no Google Sheets.`
-        : `Conectado à sua planilha${sheet.name ? ` “${sheet.name}”` : ""}.`);
+        : `Dados carregados da planilha${sheet.name ? ` “${sheet.name}”` : ""}.`);
     } catch (error) {
       if (sheetWindow && !sheetWindow.closed) sheetWindow.close();
       syncRef.current = { spreadsheetId: selectedSheet?.id || "", accessToken: "", revision: "", baselineRows: [], ready: false, busy: false };
       setGoogleStatus("erro");
       setNotice(error.message);
+    }
+  }
+
+  async function chooseAnotherGoogleSheet() {
+    if (syncRef.current.busy) {
+      setNotice("Aguarde a gravação em andamento antes de trocar de planilha.");
+      return;
+    }
+    if (!GOOGLE_CONFIGURED) {
+      setNotice("A conexão com Google ainda não foi configurada neste sistema.");
+      return;
+    }
+    if (!GOOGLE_PICKER_CONFIGURED) {
+      setNotice("Para escolher uma planilha existente, o responsável pelo sistema precisa configurar a chave da API do Google Picker e o número do projeto.");
+      return;
+    }
+    const previousSync = { ...syncRef.current, baselineRows: [...syncRef.current.baselineRows] };
+    syncRef.current.ready = false;
+    try {
+      setGoogleStatus("sincronizando");
+      setNotice("Entre na conta Google e escolha a planilha que deseja usar.");
+      const token = await requestGoogleAccessToken(GOOGLE_CLIENT_ID);
+      const picked = await chooseGoogleSpreadsheet(token, GOOGLE_API_KEY, GOOGLE_APP_ID);
+      if (!picked) {
+        syncRef.current = previousSync;
+        setGoogleStatus(previousSync.ready ? "conectado" : "desconectado");
+        setNotice("Nenhuma planilha foi selecionada.");
+        return;
+      }
+      const result = await importGoogleSpreadsheet(token, picked.id);
+      const sheet = { id: picked.id, name: picked.name, url: result.spreadsheetUrl };
+      rememberSelectedSheet(sheet);
+      setSelectedSheet(sheet);
+      setGoogleSheetUrl(result.spreadsheetUrl);
+      const remoteRows = validateRows(result.rows);
+      syncRef.current = {
+        spreadsheetId: picked.id,
+        accessToken: token,
+        revision: result.revision,
+        baselineRows: remoteRows,
+        ready: false,
+        busy: false,
+      };
+      syncRef.current.ready = true;
+      skipSyncRef.current = true;
+      updateRows(remoteRows, { remote: true });
+      setGoogleStatus("conectado");
+      setNotice(`Planilha “${picked.name}” importada e conectada. Os dados já aparecem no site.`);
+    } catch (error) {
+      syncRef.current = previousSync;
+      setGoogleStatus(previousSync.ready ? "conectado" : "erro");
+      setNotice(`Não foi possível importar a planilha: ${error.message}`);
     }
   }
 
@@ -935,41 +928,6 @@ export default function App() {
       setPeriod("todos");
       setCategoryFilter("");
       if (storageCleared) setNotice("A cópia deste navegador foi apagada. A planilha pessoal no Google Drive não foi alterada.");
-      close();
-      return;
-    }
-    if (confirmation.type === "shared-migrate") {
-      try {
-        const sync = syncRef.current;
-        setGoogleStatus("sincronizando");
-        const result = await writeGoogleRows(sync.accessToken, sync.spreadsheetId, rows, sync.revision, sync.baselineRows);
-        if (result.conflict) {
-          sync.ready = false;
-          setSyncConflict({
-            baselineRows: sync.baselineRows,
-            localRows: rows,
-            remoteRows: validateRows(result.rows),
-            revision: result.revision,
-            conflicts: result.conflicts || [],
-          });
-          skipSyncRef.current = true;
-          updateRows(validateRows(result.rows), { remote: true });
-          setGoogleStatus("conflito");
-          setNotice("A planilha mudou durante a preparação da migração. Escolha qual versão manter.");
-        } else {
-          syncRef.current = {
-            ...sync,
-            revision: result.revision,
-            baselineRows: validateRows(result.rows),
-            ready: true,
-          };
-          setGoogleStatus("conectado");
-          setNotice("Dados enviados para sua planilha Google.");
-        }
-      } catch (error) {
-        setGoogleStatus("erro");
-        setNotice(error.message);
-      }
       close();
       return;
     }
@@ -1594,11 +1552,11 @@ export default function App() {
                         ? "Duas alterações no mesmo registro precisam de uma escolha. Seus dados não foram sobrescritos."
                       : googleStatus === "sincronizando"
                         ? "Preparando sua planilha pessoal no Google Drive…"
-                        : !GOOGLE_CONFIGURED
+                      : !GOOGLE_CONFIGURED
                           ? "A conexão Google ainda não foi ativada pelo responsável pelo sistema."
                           : selectedSheet
                             ? `Sua planilha “${selectedSheet.name || "Gestão Tech - Meus dados"}” está salva neste navegador. Entre com a mesma conta Google para abrir e continuar.`
-                            : "Entre com sua conta Google. Na primeira conexão, criaremos uma planilha pessoal formatada no seu Drive. Você pode compartilhá-la depois, se quiser."}
+                            : "Entre com sua conta Google. Na primeira conexão, criaremos uma planilha pessoal formatada no seu Drive. Você também pode importar uma planilha existente."}
                   </p>
                 </div>
                 {googleStatus === "conflito" && syncConflict ? (
@@ -1610,14 +1568,20 @@ export default function App() {
                   </div>
                 ) : googleStatus === "conectado" ? (
                   <div className="sheets-conflict-actions">
-                    <button className="button subtle" onClick={connectGoogle}>Sincronizar agora</button>
+                    <button className="button subtle" onClick={connectGoogle}>Atualizar dados do Sheets</button>
                     <button className="button subtle" onClick={() => googleSheetUrl && window.open(googleSheetUrl, "_blank", "noopener,noreferrer")} disabled={!googleSheetUrl}>Abrir planilha</button>
+                    <button className="button subtle" onClick={chooseAnotherGoogleSheet}>Importar de outra planilha</button>
                     <button className="text-button" onClick={disconnectShared}>Desconectar</button>
                   </div>
                 ) : (
-                  <button className="button subtle" onClick={() => connectGoogle({ openSheet: true })} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
-                    Entrar com Google e abrir planilha
-                  </button>
+                  <div className="sheets-conflict-actions">
+                    <button className="button subtle" onClick={() => connectGoogle({ openSheet: true })} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
+                      Entrar com Google e abrir planilha
+                    </button>
+                    <button className="button subtle" onClick={chooseAnotherGoogleSheet} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
+                      Importar de outra planilha
+                    </button>
+                  </div>
                 )}
               </section>
               <div className="data-intro">
