@@ -66,7 +66,14 @@ export async function openGoogleSheetPicker({ token, apiKey, appId }) {
       .setCallback((data) => {
         if (data.action === window.google.picker.Action.PICKED) {
           const file = data[window.google.picker.Response.DOCUMENTS]?.[0];
-          if (file) resolve({ id: file.id, name: file.name, url: file.url || `https://docs.google.com/spreadsheets/d/${file.id}/edit` });
+          if (file) {
+            const id = String(file.id || "");
+            if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+              reject(new Error("O seletor retornou um identificador de planilha inválido."));
+              return;
+            }
+            resolve({ id, name: String(file.name || "Planilha").slice(0, 200), url: spreadsheetUrl(id) });
+          }
           else reject(new Error("Nenhuma planilha foi selecionada."));
         } else if (data.action === window.google.picker.Action.CANCEL) {
           resolve(null);
@@ -79,6 +86,12 @@ export async function openGoogleSheetPicker({ token, apiKey, appId }) {
 
 function normalize(value) {
   return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function spreadsheetUrl(spreadsheetId) {
+  const id = String(spreadsheetId || "");
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error("A planilha selecionada tem um identificador inválido.");
+  return `https://docs.google.com/spreadsheets/d/${id}/edit`;
 }
 
 function rowRevision(rows) {
@@ -107,6 +120,7 @@ async function googleRequest(token, url, options = {}) {
 }
 
 async function getSpreadsheet(token, spreadsheetId) {
+  spreadsheetUrl(spreadsheetId);
   return googleRequest(token, `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=spreadsheetId,spreadsheetUrl,properties(title),sheets(properties(sheetId,title,gridProperties(rowCount)))`);
 }
 
@@ -193,7 +207,7 @@ export async function readGoogleRows(token, spreadsheetId) {
       body: JSON.stringify({ valueInputOption: "RAW", data: idUpdates }),
     });
   }
-  return { rows, revision: rowRevision(rows), spreadsheetUrl: spreadsheet.spreadsheetUrl };
+  return { rows, revision: rowRevision(rows), spreadsheetUrl: spreadsheetUrl(spreadsheetId) };
 }
 
 function sameRow(left, right) {

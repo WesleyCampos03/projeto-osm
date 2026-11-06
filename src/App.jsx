@@ -313,7 +313,13 @@ function load() {
 }
 function loadSelectedSheet() {
   try {
-    return JSON.parse(localStorage.getItem(SELECTED_SHEET_KEY) || "null");
+    const saved = JSON.parse(localStorage.getItem(SELECTED_SHEET_KEY) || "null");
+    if (!saved || typeof saved.id !== "string" || !/^[A-Za-z0-9_-]+$/.test(saved.id)) return null;
+    return {
+      id: saved.id,
+      name: typeof saved.name === "string" ? saved.name.slice(0, 200) : "Planilha",
+      url: `https://docs.google.com/spreadsheets/d/${saved.id}/edit`,
+    };
   } catch {
     return null;
   }
@@ -346,6 +352,7 @@ export default function App() {
   const [syncConflict, setSyncConflict] = useState(null);
   const syncRef = useRef({ spreadsheetId: "", accessToken: "", revision: "", baselineRows: [], ready: false, busy: false });
   const skipSyncRef = useRef(false);
+  const clearLocalStorageRef = useRef(false);
   const updateRows = useCallback((next, { remote = false } = {}) => {
     if (remote) skipSyncRef.current = true;
     setRows(next);
@@ -370,6 +377,10 @@ export default function App() {
   }, [updateRows]);
   useEffect(() => {
     if (persistenceBlocked) {
+      return;
+    }
+    if (clearLocalStorageRef.current) {
+      clearLocalStorageRef.current = false;
       return;
     }
     try {
@@ -873,6 +884,36 @@ export default function App() {
     }
   }
   async function confirm() {
+    if (confirmation.type === "clear-local") {
+      const sync = syncRef.current;
+      sync.ready = false;
+      sync.accessToken = "";
+      sync.spreadsheetId = "";
+      sync.baselineRows = [];
+      sync.revision = "";
+      sync.busy = false;
+      skipSyncRef.current = true;
+      let storageCleared = false;
+      try {
+        localStorage.removeItem(KEY);
+        localStorage.removeItem(SELECTED_SHEET_KEY);
+        storageCleared = true;
+      } catch {
+        setNotice("O navegador bloqueou a limpeza do armazenamento local.");
+      }
+      clearLocalStorageRef.current = storageCleared && !persistenceBlocked;
+      setSaved(false);
+      setSelectedSheet(null);
+      setGoogleSheetUrl("");
+      setGoogleStatus("desconectado");
+      setSyncConflict(null);
+      updateRows([], { remote: true });
+      setPeriod("todos");
+      setCategoryFilter("");
+      if (storageCleared) setNotice("A cópia deste navegador foi apagada. A planilha compartilhada não foi alterada.");
+      close();
+      return;
+    }
     if (confirmation.type === "shared-migrate") {
       try {
         const sync = syncRef.current;
@@ -1536,6 +1577,16 @@ export default function App() {
                             : "Entre no Google e escolha a planilha que será compartilhada com a equipe."}
                   </p>
                 </div>
+                <button
+                  className="text-button"
+                  onClick={() => setConfirmation({
+                    type: "clear-local",
+                    title: "Apagar dados deste navegador?",
+                    text: "Isso apaga os registros e a planilha lembrada neste navegador. Os dados da planilha compartilhada não serão apagados. Exporte um backup antes se quiser guardar os registros locais.",
+                  })}
+                >
+                  Apagar cópia local
+                </button>
                 {googleStatus === "conflito" && syncConflict ? (
                   <div className="sheets-conflict-actions">
                     <button className="button subtle" onClick={keepSharedVersion}>Manter versão compartilhada</button>
@@ -1561,7 +1612,7 @@ export default function App() {
                   <p>
                     {googleStatus === "conectado"
                       ? "Os exemplos são fictícios. Seus registros estão na planilha compartilhada."
-                      : "Os exemplos são fictícios. Sem a conexão compartilhada, os registros ficam neste navegador."}
+                      : "Os exemplos são fictícios. Sem a conexão compartilhada, os registros ficam salvos neste navegador até você apagar a cópia local."}
                   </p>
                 </div>
                 <div className="data-buttons">
