@@ -3,6 +3,7 @@ import readXlsxFile from "read-excel-file/browser";
 import {
   openGoogleSheetPicker,
   prepareGoogleLibraries,
+  createExampleGoogleSheet,
   readGoogleRows,
   requestGoogleAccessToken,
   writeGoogleRows,
@@ -460,7 +461,7 @@ export default function App() {
     const sync = syncRef.current;
     if (!sync.ready || !sync.accessToken) return;
     const refresh = async () => {
-      if (sync.busy || !navigator.onLine) return;
+      if (!sync.ready || sync.busy || !navigator.onLine) return;
       sync.busy = true;
       try {
         const result = await readGoogleRows(sync.accessToken, sync.spreadsheetId);
@@ -615,13 +616,17 @@ export default function App() {
       setNotice("A conexão com Google ainda não foi configurada neste sistema.");
       return;
     }
+    const previous = { ...syncRef.current, baselineRows: [...syncRef.current.baselineRows] };
+    syncRef.current.ready = false;
+    setNotice(chooseSheet ? "Escolha uma planilha no seletor do Google." : "Entre na conta Google e aguarde a conexão com a planilha.");
     try {
-      const previous = syncRef.current;
       const token = await requestGoogleAccessToken(GOOGLE_CLIENT_ID);
+      setGoogleStatus("sincronizando");
       let sheet = selectedSheet;
       if (!sheet || chooseSheet) {
         sheet = await openGoogleSheetPicker({ token, apiKey: GOOGLE_API_KEY, appId: GOOGLE_APP_ID });
         if (!sheet) {
+          syncRef.current = previous;
           setGoogleStatus(previous.ready ? "conectado" : "desconectado");
           return;
         }
@@ -715,6 +720,28 @@ export default function App() {
       setNotice(`Conectado à planilha${sheet.name ? ` “${sheet.name}”` : ""}.`);
     } catch (error) {
       syncRef.current = { spreadsheetId: selectedSheet?.id || "", accessToken: "", revision: "", baselineRows: [], ready: false, busy: false };
+      setGoogleStatus("erro");
+      setNotice(error.message);
+    }
+  }
+
+  async function createExampleSheet() {
+    if (!GOOGLE_CLIENT_ID) {
+      setNotice("A conexão com Google ainda não foi configurada neste sistema.");
+      return;
+    }
+    if (syncRef.current.busy) {
+      setNotice("Aguarde a gravação em andamento antes de criar a planilha de exemplo.");
+      return;
+    }
+    setNotice("Autorize sua conta Google para criar o modelo de exemplo.");
+    try {
+      const token = await requestGoogleAccessToken(GOOGLE_CLIENT_ID);
+      setNotice("Criando e formatando a planilha de exemplo no seu Google Drive…");
+      const sheet = await createExampleGoogleSheet(token, exampleRows);
+      setNotice("Modelo criado. Abrindo a planilha no Google Sheets…");
+      window.location.assign(sheet.spreadsheetUrl);
+    } catch (error) {
       setGoogleStatus("erro");
       setNotice(error.message);
     }
@@ -1588,6 +1615,7 @@ export default function App() {
                   <div className="sheets-conflict-actions">
                     <button className="button subtle" onClick={connectGoogle}>Sincronizar agora</button>
                     <button className="button subtle" onClick={() => connectGoogle({ chooseSheet: true })}>Trocar planilha</button>
+                    <button className="button subtle" onClick={() => googleSheetUrl && window.open(googleSheetUrl, "_blank", "noopener,noreferrer")} disabled={!googleSheetUrl}>Abrir planilha</button>
                     <button className="text-button" onClick={disconnectShared}>Desconectar</button>
                   </div>
                 ) : (
@@ -1755,11 +1783,11 @@ export default function App() {
                     <button
                       className="text-button"
                       type="button"
-                      disabled={!googleSheetUrl}
-                      title={googleSheetUrl ? "Abrir a planilha compartilhada" : "Conecte a planilha compartilhada para abrir"}
-                      onClick={() => googleSheetUrl && window.open(googleSheetUrl, "_blank", "noopener,noreferrer")}
+                      disabled={!GOOGLE_CLIENT_ID || googleStatus === "sincronizando"}
+                      title={!GOOGLE_CLIENT_ID ? "A conexão Google ainda não foi configurada" : "Cria uma cópia formatada com dados de exemplo no Google Drive"}
+                      onClick={createExampleSheet}
                     >
-                      Abrir planilha no Google Sheets
+                      Criar modelo de exemplo no Google Sheets
                       <Icon name="external" size={16} />
                     </button>
                   </div>

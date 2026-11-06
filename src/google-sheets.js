@@ -19,11 +19,15 @@ function loadScript(src, ready, promise) {
   });
 }
 
-export function prepareGoogleLibraries() {
+function prepareGoogleIdentity() {
   identityLibrary ||= loadScript(
     "https://accounts.google.com/gsi/client",
     () => Boolean(window.google?.accounts?.oauth2),
   );
+  return identityLibrary;
+}
+
+function prepareGooglePicker() {
   pickerLibrary ||= loadScript(
     "https://apis.google.com/js/api.js",
     () => Boolean(window.gapi?.load),
@@ -35,12 +39,16 @@ export function prepareGoogleLibraries() {
       ontimeout: () => reject(new Error("O seletor do Google demorou demais para carregar.")),
     });
   }));
-  return Promise.all([identityLibrary, pickerLibrary]);
+  return pickerLibrary;
+}
+
+export function prepareGoogleLibraries() {
+  return Promise.all([prepareGoogleIdentity(), prepareGooglePicker()]);
 }
 
 export async function requestGoogleAccessToken(clientId) {
   if (!clientId) throw new Error("A conexão com Google ainda não foi configurada neste sistema.");
-  await prepareGoogleLibraries();
+  await prepareGoogleIdentity();
   return new Promise((resolve, reject) => {
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
@@ -57,7 +65,7 @@ export async function requestGoogleAccessToken(clientId) {
 }
 
 export async function openGoogleSheetPicker({ token, apiKey, appId }) {
-  await prepareGoogleLibraries();
+  await prepareGooglePicker();
   return new Promise((resolve, reject) => {
     const picker = new window.google.picker.PickerBuilder()
       .addView(new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS))
@@ -65,7 +73,8 @@ export async function openGoogleSheetPicker({ token, apiKey, appId }) {
       .setDeveloperKey(apiKey)
       .setAppId(appId)
       .setCallback((data) => {
-        if (data.action === window.google.picker.Action.PICKED) {
+        const action = data[window.google.picker.Response.ACTION] || data.action;
+        if (action === window.google.picker.Action.PICKED) {
           const file = data[window.google.picker.Response.DOCUMENTS]?.[0];
           if (file) {
             const id = String(file.id || "");
@@ -76,8 +85,15 @@ export async function openGoogleSheetPicker({ token, apiKey, appId }) {
             resolve({ id, name: String(file.name || "Planilha").slice(0, 200), url: spreadsheetUrl(id) });
           }
           else reject(new Error("Nenhuma planilha foi selecionada."));
-        } else if (data.action === window.google.picker.Action.CANCEL) {
+        } else if (action === window.google.picker.Action.CANCEL) {
           resolve(null);
+        } else if (action === window.google.picker.Action.ERROR) {
+          const details = typeof data.error === "string" ? data.error : data.error?.message;
+          reject(new Error(details
+            ? `O Google Picker falhou: ${details}`
+            : "O seletor do Google encontrou um erro. Confira se a Google Picker API está ativada e se a chave de API permite o domínio do site e docs.google.com."));
+        } else {
+          reject(new Error(`O Google Picker foi fechado sem concluir a seleção${action ? ` (ação: ${action})` : ""}. Tente novamente.`));
         }
       })
       .build();
@@ -372,6 +388,20 @@ async function replaceData(token, spreadsheetId, rows) {
     body: JSON.stringify({ requests }),
   });
   return readGoogleRows(token, spreadsheetId);
+}
+
+export async function createExampleGoogleSheet(token, rows) {
+  const title = "Gestão Tech - Modelo de exemplo";
+  const created = await googleRequest(token, "https://sheets.googleapis.com/v4/spreadsheets", {
+    method: "POST",
+    body: JSON.stringify({
+      properties: { title },
+      sheets: [{ properties: { title: SHEET_NAME, gridProperties: { rowCount: 1000, columnCount: HEADERS.length } } }],
+    }),
+  });
+  if (!created.spreadsheetId) throw new Error("O Google não retornou o endereço da planilha de exemplo.");
+  const saved = await replaceData(token, created.spreadsheetId, rows);
+  return { ...saved, id: created.spreadsheetId, name: title, spreadsheetUrl: spreadsheetUrl(created.spreadsheetId) };
 }
 
 export async function writeGoogleRows(token, spreadsheetId, proposedRows, baseRevision, baseRows) {
