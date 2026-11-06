@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import readXlsxFile from "read-excel-file/browser";
+import { readGoogleRows, writeGoogleRows } from "./google-sheets.js";
 import {
   exampleRows,
   money,
@@ -13,6 +14,8 @@ import {
 import "./App.css";
 
 const KEY = "gestao-tech-data-v1";
+const GOOGLE_BRIDGE_URL = import.meta.env.VITE_GOOGLE_BRIDGE_URL || "";
+const rowSignature = (rows) => JSON.stringify(rows.map(({ id, date, description, category, type, amount }) => ({ id, date, description, category, type, amount })));
 const blank = {
   date: "",
   description: "",
@@ -85,9 +88,9 @@ function parseExcelFile(file) {
         date: excelDate(read("data")),
         description: String(read("description") ?? ""),
         category: String(read("category") ?? ""),
-        type: ["receita", "revenue", "income", "entrada"].includes(type)
+        type: ["receita", "revenue", "income", "entrada", "ganho", "ganhos"].includes(type)
           ? "receita"
-          : ["despesa", "expense", "saida"].includes(type)
+          : ["despesa", "expense", "saida", "gasto", "gastos"].includes(type)
             ? "despesa"
             : type,
         amount,
@@ -188,6 +191,20 @@ function load() {
     };
   }
 }
+function loadSharedAccessCode() {
+  try {
+    return sessionStorage.getItem("gestao-tech-access-code") || "";
+  } catch {
+    return "";
+  }
+}
+function rememberSharedAccessCode(value) {
+  try {
+    sessionStorage.setItem("gestao-tech-access-code", value);
+  } catch {
+    // The code remains usable in this session when session storage is blocked.
+  }
+}
 export default function App() {
   const [initial] = useState(load),
     [rows, setRows] = useState(initial.rows),
@@ -203,6 +220,20 @@ export default function App() {
     [notice, setNotice] = useState(initial.warning),
     [saved, setSaved] = useState(false),
     [online, setOnline] = useState(navigator.onLine);
+  const [googleStatus, setGoogleStatus] = useState("desconectado");
+  const [accessCode, setAccessCode] = useState(loadSharedAccessCode);
+  const [syncConflict, setSyncConflict] = useState(null);
+  const syncRef = useRef({ bridgeUrl: "", accessCode: "", revision: "", baselineRows: [], ready: false, busy: false });
+  const skipSyncRef = useRef(false);
+  const updateRows = useCallback((next, { remote = false } = {}) => {
+    if (remote) skipSyncRef.current = true;
+    setRows(next);
+    if (categoryFilter && !next.some((row) => row.category === categoryFilter))
+      setCategoryFilter("");
+    if (period !== "todos" && !next.some((row) => row.date.startsWith(period)))
+      setPeriod("todos");
+  }, [categoryFilter, period]);
+  const updateRowsRef = useRef(updateRows);
   const [form, setForm] = useState(blank),
     [editing, setEditing] = useState(null),
     [showForm, setShowForm] = useState(false),
@@ -213,6 +244,9 @@ export default function App() {
   const [chartType, setChartType] = useState("columns");
   const fileInput = useRef(null),
     dialog = useRef(null);
+  useEffect(() => {
+    updateRowsRef.current = updateRows;
+  }, [updateRows]);
   useEffect(() => {
     if (persistenceBlocked) {
       return;
@@ -227,6 +261,102 @@ export default function App() {
       );
     }
   }, [rows, persistenceBlocked]);
+  useEffect(() => {
+    const sync = syncRef.current;
+    if (!sync.ready || !sync.accessCode || skipSyncRef.current) {
+      skipSyncRef.current = false;
+      return;
+    }
+    if (sync.busy) {
+      sync.pendingRows = rows;
+      return;
+    }
+    sync.busy = true;
+    const save = async (proposedRows) => {
+      try {
+        const result = await writeGoogleRows(
+          sync.bridgeUrl,
+          sync.accessCode,
+          proposedRows,
+          sync.revision,
+          sync.baselineRows,
+        );
+        if (result.conflict) {
+          sync.ready = false;
+          setSyncConflict({
+            baselineRows: sync.baselineRows,
+            localRows: proposedRows,
+            remoteRows: validateRows(result.rows),
+            revision: result.revision,
+            conflicts: result.conflicts || [],
+          });
+          skipSyncRef.current = true;
+          updateRowsRef.current(validateRows(result.rows), { remote: true });
+          setGoogleStatus("conflito");
+          setNotice("Duas pessoas alteraram o mesmo registro. Escolha qual versão manter.");
+          return false;
+        }
+        sync.revision = result.revision;
+        sync.baselineRows = validateRows(result.rows);
+        if (rowSignature(proposedRows) !== rowSignature(result.rows)) {
+          skipSyncRef.current = true;
+          updateRowsRef.current(sync.baselineRows, { remote: true });
+        }
+        setGoogleStatus("conectado");
+        return true;
+      } catch (error) {
+        setGoogleStatus("erro");
+        setNotice(error.message);
+        return false;
+      }
+    };
+    (async () => {
+      let proposedRows = rows;
+      let savedSuccessfully = true;
+      while (proposedRows && savedSuccessfully) {
+        sync.pendingRows = null;
+        savedSuccessfully = await save(proposedRows);
+        proposedRows = sync.pendingRows;
+      }
+      sync.busy = false;
+    })();
+  }, [rows]);
+  useEffect(() => {
+    const sync = syncRef.current;
+    if (!sync.ready || !sync.accessCode) return;
+    const refresh = async () => {
+      if (sync.busy || !navigator.onLine) return;
+      sync.busy = true;
+      try {
+        const result = await readGoogleRows(sync.bridgeUrl, sync.accessCode);
+        const remoteRows = validateRows(result.rows);
+        const current = rowSignature(rows);
+        const incoming = rowSignature(remoteRows);
+        if (current !== incoming) {
+          sync.revision = result.revision;
+          sync.baselineRows = remoteRows;
+          skipSyncRef.current = true;
+          updateRows(remoteRows, { remote: true });
+        } else {
+          sync.revision = result.revision;
+          sync.baselineRows = remoteRows;
+        }
+        setGoogleStatus("conectado");
+      } catch (error) {
+        setGoogleStatus("erro");
+        setNotice(error.message);
+      } finally {
+        sync.busy = false;
+        if (sync.pendingRows) {
+          const pending = sync.pendingRows;
+          sync.pendingRows = null;
+          updateRows(pending);
+        }
+      }
+    };
+    const timer = window.setInterval(refresh, 20000);
+    return () => window.clearInterval(timer);
+  }, [googleStatus, rows, updateRows]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
     window.addEventListener("online", update);
@@ -321,15 +451,161 @@ export default function App() {
           .includes(search.toLocaleLowerCase("pt-BR")),
     )
     .sort((a, b) => b.date.localeCompare(a.date));
-  function updateRows(next) {
-    setRows(next);
-    if (
-      categoryFilter &&
-      !next.some((row) => row.category === categoryFilter)
-    )
-      setCategoryFilter("");
-    if (period !== "todos" && !next.some((row) => row.date.startsWith(period)))
-      setPeriod("todos");
+  async function connectGoogle() {
+    if (syncRef.current.busy) {
+      setNotice("Aguarde a gravação em andamento antes de sincronizar novamente.");
+      return;
+    }
+    if (!GOOGLE_BRIDGE_URL || !accessCode.trim()) {
+      setNotice("Informe o código de acesso da equipe e configure o serviço compartilhado do Google Sheets.");
+      return;
+    }
+    try {
+      const previous = syncRef.current;
+      const hasPendingLocalChanges = previous.bridgeUrl === GOOGLE_BRIDGE_URL &&
+        previous.accessCode === accessCode.trim() &&
+        previous.revision &&
+        rowSignature(previous.baselineRows) !== rowSignature(rows);
+      syncRef.current.ready = false;
+      setGoogleStatus("sincronizando");
+      const result = await readGoogleRows(GOOGLE_BRIDGE_URL, accessCode.trim());
+      const remoteRows = validateRows(result.rows);
+      if (hasPendingLocalChanges) {
+        const saveResult = await writeGoogleRows(
+          GOOGLE_BRIDGE_URL,
+          accessCode.trim(),
+          rows,
+          previous.revision,
+          previous.baselineRows,
+        );
+        if (saveResult.conflict) {
+          syncRef.current = {
+            bridgeUrl: GOOGLE_BRIDGE_URL,
+            accessCode: accessCode.trim(),
+            revision: saveResult.revision,
+            baselineRows: validateRows(saveResult.rows),
+            ready: false,
+            busy: false,
+          };
+          setSyncConflict({
+            baselineRows: previous.baselineRows,
+            localRows: rows,
+            remoteRows: validateRows(saveResult.rows),
+            revision: saveResult.revision,
+            conflicts: saveResult.conflicts || [],
+          });
+          setGoogleStatus("conflito");
+          return;
+        }
+        const savedRows = validateRows(saveResult.rows);
+        syncRef.current = {
+          bridgeUrl: GOOGLE_BRIDGE_URL,
+          accessCode: accessCode.trim(),
+          revision: saveResult.revision,
+          baselineRows: savedRows,
+          ready: true,
+          busy: false,
+        };
+        rememberSharedAccessCode(accessCode.trim());
+        skipSyncRef.current = true;
+        updateRows(savedRows, { remote: true });
+        setGoogleStatus("conectado");
+        setNotice("Alterações locais foram recuperadas e mescladas com a planilha.");
+        return;
+      }
+      syncRef.current = {
+        bridgeUrl: GOOGLE_BRIDGE_URL,
+        accessCode: accessCode.trim(),
+        revision: result.revision,
+        baselineRows: remoteRows,
+        ready: false,
+        busy: false,
+      };
+      rememberSharedAccessCode(accessCode.trim());
+      if (!remoteRows.length && rows.length) {
+        setConfirmation({
+          type: "shared-migrate",
+          title: "Enviar seus dados para a planilha?",
+          text: `A aba Gestao Tech está vazia. Enviar os ${rows.length} registros salvos neste navegador para a planilha compartilhada?`,
+        });
+        setGoogleStatus("desconectado");
+        return;
+      }
+      if (remoteRows.length && rows.length && rowSignature(remoteRows) !== rowSignature(rows)) {
+        setSyncConflict({
+          baselineRows: [],
+          localRows: rows,
+          remoteRows,
+          revision: result.revision,
+          conflicts: [],
+          bootstrap: true,
+        });
+        setGoogleStatus("conflito");
+        setNotice("Há dados locais e dados compartilhados diferentes. Escolha como continuar.");
+        return;
+      }
+      syncRef.current.ready = true;
+      skipSyncRef.current = true;
+      updateRows(remoteRows, { remote: true });
+      setGoogleStatus("conectado");
+      setNotice("Conectado à planilha compartilhada. Não é necessário entrar em uma conta Google.");
+    } catch (error) {
+      syncRef.current = { bridgeUrl: "", accessCode: "", revision: "", baselineRows: [], ready: false, busy: false };
+      setGoogleStatus("erro");
+      setNotice(error.message);
+    }
+  }
+
+  function keepSharedVersion() {
+    if (!syncConflict) return;
+    syncRef.current = {
+      ...syncRef.current,
+      revision: syncConflict.revision,
+      baselineRows: syncConflict.remoteRows,
+      ready: true,
+      busy: false,
+    };
+    setSyncConflict(null);
+    skipSyncRef.current = true;
+    updateRows(syncConflict.remoteRows, { remote: true });
+    setGoogleStatus("conectado");
+    setNotice("A versão compartilhada foi mantida.");
+  }
+
+  function reapplyLocalVersion() {
+    if (!syncConflict) return;
+    const baselineById = new Map(syncConflict.baselineRows.map((row) => [row.id, row]));
+    const localById = new Map(syncConflict.localRows.map((row) => [row.id, row]));
+    const mergedById = new Map(syncConflict.remoteRows.map((row) => [row.id, row]));
+    for (const row of syncConflict.baselineRows) {
+      if (!localById.has(row.id)) mergedById.delete(row.id);
+    }
+    for (const row of syncConflict.localRows) {
+      const baseline = baselineById.get(row.id);
+      if (!baseline || rowSignature([baseline]) !== rowSignature([row])) mergedById.set(row.id, row);
+    }
+    const mergedRows = [...mergedById.values()];
+    syncRef.current = {
+      ...syncRef.current,
+      revision: syncConflict.revision,
+      baselineRows: syncConflict.remoteRows,
+      ready: true,
+      busy: false,
+    };
+    setSyncConflict(null);
+    updateRows(mergedRows);
+    setGoogleStatus("conectado");
+    setNotice("Suas alterações serão reaplicadas sobre a versão compartilhada.");
+  }
+
+  function disconnectShared() {
+    syncRef.current.ready = false;
+    syncRef.current.accessCode = "";
+    setSyncConflict(null);
+    setAccessCode("");
+    try { sessionStorage.removeItem("gestao-tech-access-code"); } catch {}
+    setGoogleStatus("desconectado");
+    setNotice("Desconectado. Este navegador continuará usando a cópia local dos dados.");
   }
   function changeComparisonPeriod(index, value) {
     setComparisonPeriods((selected) => {
@@ -445,7 +721,42 @@ export default function App() {
       setNotice(`Não foi possível exportar a apresentação: ${error.message}`);
     }
   }
-  function confirm() {
+  async function confirm() {
+    if (confirmation.type === "shared-migrate") {
+      try {
+        const sync = syncRef.current;
+        setGoogleStatus("sincronizando");
+        const result = await writeGoogleRows(sync.bridgeUrl, sync.accessCode, rows, sync.revision, sync.baselineRows);
+        if (result.conflict) {
+          sync.ready = false;
+          setSyncConflict({
+            baselineRows: sync.baselineRows,
+            localRows: rows,
+            remoteRows: validateRows(result.rows),
+            revision: result.revision,
+            conflicts: result.conflicts || [],
+          });
+          skipSyncRef.current = true;
+          updateRows(validateRows(result.rows), { remote: true });
+          setGoogleStatus("conflito");
+          setNotice("A planilha mudou durante a preparação da migração. Escolha qual versão manter.");
+        } else {
+          syncRef.current = {
+            ...sync,
+            revision: result.revision,
+            baselineRows: validateRows(result.rows),
+            ready: true,
+          };
+          setGoogleStatus("conectado");
+          setNotice("Dados enviados para a planilha compartilhada.");
+        }
+      } catch (error) {
+        setGoogleStatus("erro");
+        setNotice(error.message);
+      }
+      close();
+      return;
+    }
     if (confirmation.type === "enable-storage") {
       setPersistenceBlocked(false);
       setNotice("Salvamento ativado. Os dados desta sessão foram salvos.");
@@ -474,53 +785,53 @@ export default function App() {
   const metrics = sales
     ? [
         [
-          "Receita de vendas",
+          "Ganhos com vendas",
           stats.income,
           "trend",
           "purple",
-          "Soma dos registros de receita",
+          "Soma dos ganhos registrados",
         ],
         [
           "Vendas registradas",
           stats.count,
           "data",
           "blue",
-          "Quantidade de registros de receita",
+          "Quantidade de ganhos registrados",
         ],
         [
           "Ticket médio",
           stats.ticket,
           "wallet",
           "orange",
-          "Receita ÷ vendas registradas",
+          "Ganhos ÷ vendas registradas",
         ],
       ]
     : [
         [
-          "Receitas",
+          "Ganhos",
           stats.income,
           "trend",
           "purple",
-          "Total de entradas do período",
+          "Total recebido no período",
         ],
         [
-          "Despesas",
+          "Gastos",
           stats.expense,
           "wallet",
           "orange",
-          "Total de saídas do período",
+          "Total gasto no período",
         ],
         [
           "Saldo",
           stats.balance,
           "dashboard",
           "blue",
-          "Receitas menos despesas",
+          "Ganhos menos gastos",
         ],
       ];
   const comparisonMetrics = sales
     ? [
-        ["Receita de vendas", comparisonStatsA.income, comparisonStatsB.income],
+        ["Ganhos com vendas", comparisonStatsA.income, comparisonStatsB.income],
         [
           "Vendas registradas",
           comparisonStatsA.count,
@@ -529,8 +840,8 @@ export default function App() {
         ["Ticket médio", comparisonStatsA.ticket, comparisonStatsB.ticket],
       ]
     : [
-        ["Receitas", comparisonStatsA.income, comparisonStatsB.income],
-        ["Despesas", comparisonStatsA.expense, comparisonStatsB.expense],
+        ["Ganhos", comparisonStatsA.income, comparisonStatsB.income],
+        ["Gastos", comparisonStatsA.expense, comparisonStatsB.expense],
         ["Saldo", comparisonStatsA.balance, comparisonStatsB.balance],
       ];
   return (
@@ -590,9 +901,11 @@ export default function App() {
           <span className={`status-dot ${online ? "" : "offline"}`} />
           {online ? "Você está online" : "Modo offline"}
           <small>
-            {saved
-              ? "Dados salvos neste navegador"
-              : "Dados apenas nesta sessão"}
+            {googleStatus === "conectado"
+              ? "Dados compartilhados no Google Sheets"
+              : saved
+                ? "Dados salvos neste navegador"
+                : "Dados apenas nesta sessão"}
           </small>
         </div>
       </aside>
@@ -867,7 +1180,7 @@ export default function App() {
                       <tbody>
                         {comparisonMetrics.map(([label, valueA, valueB]) => {
                           const difference = valueB - valueA;
-                          const isExpense = label === "Despesas";
+                          const isExpense = label === "Gastos";
                           const changeTone =
                             difference === 0
                               ? "is-even"
@@ -917,7 +1230,7 @@ export default function App() {
                           : chartGrouping === "category"
                             ? sales
                             ? "Vendas por categoria"
-                            : "Receitas e despesas por categoria"
+                            : "Ganhos e gastos por categoria"
                           : sales
                             ? "Vendas ao longo do tempo"
                             : "Como seu dinheiro se movimenta"}
@@ -928,8 +1241,8 @@ export default function App() {
                           : chartGrouping === "category"
                           ? "Compare os valores de cada categoria no período"
                           : sales
-                            ? "Receitas agrupadas por mês"
-                            : "Compare entradas e saídas por mês"}
+                            ? "Ganhos agrupados por mês"
+                            : "Compare ganhos e gastos por mês"}
                       </p>
                     </div>
                     <span className="chart-tag">
@@ -969,12 +1282,12 @@ export default function App() {
                   <div className="legend">
                     <span>
                       <i className="purple-dot" />
-                      {sales ? "Vendas" : "Receitas"}
+                      {sales ? "Vendas" : "Ganhos"}
                     </span>
                     {!sales && (
                       <span>
                         <i className="orange-dot" />
-                        Despesas
+                        Gastos
                       </span>
                     )}
                   </div>
@@ -1003,23 +1316,23 @@ export default function App() {
                         <span className="spending-insight-icon purple"><Icon name="wallet" /></span>
                         <div><strong>Ticket médio</strong><p>Suas {stats.count} vendas têm valor médio de <b>{money(stats.ticket)}</b>. Acompanhe esse número ao longo dos meses.</p></div>
                       </div>
-                      {topExpense && <div className="spending-insight-card"><span className="spending-insight-icon orange"><Icon name="trend" /></span><div><strong>Principal saída</strong><p>{topExpense[0]} soma <b>{money(topExpense[1])}</b> e representa a maior categoria de despesas neste período.</p></div></div>}
+                      {topExpense && <div className="spending-insight-card"><span className="spending-insight-icon orange"><Icon name="trend" /></span><div><strong>Principal gasto</strong><p>{topExpense[0]} soma <b>{money(topExpense[1])}</b> e representa a maior categoria de gastos neste período.</p></div></div>}
                     </div>
                   ) : (
                     <div className="spending-insight-list">
                       {stats.income > 0 ? (
                         <div className="spending-insight-card">
                           <span className="spending-insight-icon purple"><Icon name="wallet" /></span>
-                          <div><strong>Quanto da receita foi gasto</strong><p>As despesas equivalem a <b>{expenseShare.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</b> das receitas. {expenseShare > 85 ? "Revise os custos recorrentes e veja quais podem ser renegociados." : expenseShare > 60 ? "Acompanhe os custos principais para preservar seu saldo." : "Seu gasto está abaixo das receitas registradas neste período."}</p></div>
+                          <div><strong>Quanto dos ganhos foi gasto</strong><p>Os gastos equivalem a <b>{expenseShare.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</b> dos ganhos. {expenseShare > 85 ? "Revise os custos recorrentes e veja quais podem ser renegociados." : expenseShare > 60 ? "Acompanhe os custos principais para preservar seu saldo." : "Seus gastos estão abaixo dos ganhos registrados neste período."}</p></div>
                         </div>
                       ) : (
-                        <div className="spending-insight-card"><span className="spending-insight-icon purple"><Icon name="wallet" /></span><div><strong>Registre receitas para comparar</strong><p>Com entradas e saídas cadastradas, você poderá acompanhar quanto dos recebimentos está sendo usado nos gastos.</p></div></div>
+                        <div className="spending-insight-card"><span className="spending-insight-icon purple"><Icon name="wallet" /></span><div><strong>Registre ganhos para comparar</strong><p>Com ganhos e gastos cadastrados, você poderá acompanhar quanto do dinheiro recebido está sendo usado.</p></div></div>
                       )}
-                      {topExpense && <div className="spending-insight-card"><span className="spending-insight-icon orange"><Icon name="trend" /></span><div><strong>Categoria que mais pesa</strong><p><b>{topExpense[0]}</b> concentra {stats.expense ? (topExpense[1] / stats.expense * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : 0}% das despesas ({money(topExpense[1])}). Confira se os lançamentos estão corretos e se há espaço para economizar.</p></div></div>}
-                      {monthlyExpenseChange !== null && <div className="spending-insight-card"><span className={`spending-insight-icon ${monthlyExpenseChange > 0 ? "orange" : "green"}`}><Icon name="sparkle" /></span><div><strong>{monthlyExpenseChange > 0 ? "Gastos aumentaram" : monthlyExpenseChange < 0 ? "Gastos diminuíram" : "Gastos estáveis"} no mês mais recente</strong><p>{monthlyExpenseChange === 0 ? "O total de despesas ficou igual ao mês anterior." : `A diferença para o mês anterior foi de ${money(Math.abs(monthlyExpenseChange))}. Compare os lançamentos recentes para entender o que mudou.`}</p></div></div>}
+                      {topExpense && <div className="spending-insight-card"><span className="spending-insight-icon orange"><Icon name="trend" /></span><div><strong>Categoria que mais pesa</strong><p><b>{topExpense[0]}</b> concentra {stats.expense ? (topExpense[1] / stats.expense * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : 0}% dos gastos ({money(topExpense[1])}). Confira se os lançamentos estão corretos e se há espaço para economizar.</p></div></div>}
+                      {monthlyExpenseChange !== null && <div className="spending-insight-card"><span className={`spending-insight-icon ${monthlyExpenseChange > 0 ? "orange" : "green"}`}><Icon name="sparkle" /></span><div><strong>{monthlyExpenseChange > 0 ? "Gastos aumentaram" : monthlyExpenseChange < 0 ? "Gastos diminuíram" : "Gastos estáveis"} no mês mais recente</strong><p>{monthlyExpenseChange === 0 ? "O total de gastos ficou igual ao mês anterior." : `A diferença para o mês anterior foi de ${money(Math.abs(monthlyExpenseChange))}. Compare os lançamentos recentes para entender o que mudou.`}</p></div></div>}
                       {largestExpense && (
                         <div className="largest-expense-note">
-                          <strong>Maior despesa deste período</strong>
+                          <strong>Maior gasto deste período</strong>
                           <p>
                             <b>{largestExpense.description}</b> · {money(largestExpense.amount)} · {largestExpenseDate}
                             {!largestExpenseHasSameCategory && <> · Categoria: {largestExpense.category}</>}
@@ -1072,12 +1385,56 @@ export default function App() {
           )}
           {page === "data" && (
             <>
+              <section className={`sheets-sync-card ${googleStatus === "conectado" ? "is-connected" : ""}`}>
+                <div>
+                  <strong>Planilha compartilhada</strong>
+                  <p>
+                    {googleStatus === "conectado"
+                      ? "Conectado. As alterações são salvas com controle de concorrência e atualizadas para a equipe."
+                      : googleStatus === "conflito"
+                        ? "Duas alterações no mesmo registro precisam de uma escolha. Seus dados não foram sobrescritos."
+                      : googleStatus === "sincronizando"
+                        ? "Conectando ou sincronizando com o Google Sheets…"
+                        : "Use o código compartilhado da equipe. Não é necessário entrar em uma conta Google."}
+                  </p>
+                  {googleStatus !== "conectado" && googleStatus !== "conflito" && (
+                    <label className="sheets-access-code">
+                      Código de acesso da equipe
+                      <input
+                        type="password"
+                        autoComplete="current-password"
+                        value={accessCode}
+                        onChange={(event) => setAccessCode(event.target.value)}
+                        placeholder="Digite o código compartilhado"
+                      />
+                    </label>
+                  )}
+                </div>
+                {googleStatus === "conflito" && syncConflict ? (
+                  <div className="sheets-conflict-actions">
+                    <button className="button subtle" onClick={keepSharedVersion}>Manter versão compartilhada</button>
+                    <button className="button primary" onClick={reapplyLocalVersion}>
+                      {syncConflict.bootstrap ? "Mesclar dados deste navegador" : "Reaplicar minhas alterações"}
+                    </button>
+                  </div>
+                ) : googleStatus === "conectado" ? (
+                  <div className="sheets-conflict-actions">
+                    <button className="button subtle" onClick={connectGoogle}>Sincronizar agora</button>
+                    <button className="text-button" onClick={disconnectShared}>Desconectar</button>
+                  </div>
+                ) : (
+                  <button className="button subtle" onClick={connectGoogle} disabled={googleStatus === "sincronizando"}>
+                    Conectar sem conta Google
+                  </button>
+                )}
+              </section>
               <div className="data-intro">
                 <div>
                   <strong>Seu conjunto de dados</strong>
                   <p>
-                    Os exemplos são fictícios. Seus registros ficam apenas neste
-                    navegador.
+                    {googleStatus === "conectado"
+                      ? "Os exemplos são fictícios. Seus registros estão na planilha compartilhada."
+                      : "Os exemplos são fictícios. Sem a conexão compartilhada, os registros ficam neste navegador."}
                   </p>
                 </div>
                 <div className="data-buttons">
@@ -1158,7 +1515,7 @@ export default function App() {
                           <td>{row.category}</td>
                           <td>
                             <span className={`type-pill ${row.type}`}>
-                              {row.type === "receita" ? "Receita" : "Despesa"}
+                              {row.type === "receita" ? "Ganho" : "Gasto"}
                             </span>
                           </td>
                           <td className="amount-cell">{money(row.amount)}</td>
@@ -1199,7 +1556,7 @@ export default function App() {
                   )}
                 </div>
                 <p className="table-note">
-                  No modelo Vendas, cada receita representa uma venda. Use uma
+                  No modelo Vendas, cada ganho representa uma venda. Use uma
                   linha por venda para calcular o ticket médio corretamente.
                 </p>
               </article>
@@ -1211,7 +1568,7 @@ export default function App() {
                     Importe Excel (.xlsx) ou CSV. Use colunas de data,
                     descrição, categoria, tipo e valor; datas em AAAA-MM-DD ou
                     DD/MM/AAAA e
-                    tipo receita ou despesa.
+                    tipo ganho ou gasto.
                   </p>
                   <button
                     className="text-button"
@@ -1239,7 +1596,7 @@ export default function App() {
             <span>
               <strong>gestão tech</strong> · Painéis financeiros e de vendas
             </span>
-            <span>Seus dados ficam salvos neste navegador.</span>
+            <span>{googleStatus === "conectado" ? "Seus dados ficam na planilha Google conectada." : "Conecte uma planilha Google para compartilhar os dados entre pessoas e dispositivos."}</span>
           </footer>
         </div>
       </main>
@@ -1318,8 +1675,8 @@ export default function App() {
                   value={form.type}
                   onChange={(e) => setForm({ ...form, type: e.target.value })}
                 >
-                  <option value="receita">Receita</option>
-                  <option value="despesa">Despesa</option>
+                  <option value="receita">Ganho</option>
+                  <option value="despesa">Gasto</option>
                 </select>
               </label>
               <label>
@@ -1388,7 +1745,7 @@ function ChartView({ rows, sales, grouping, type }) {
         aria-label={values
           .map(
             (v) =>
-              `${v.key}: receitas ${money(v.income)}${sales ? "" : `, despesas ${money(v.expense)}`}`,
+              `${v.key}: ganhos ${money(v.income)}${sales ? "" : `, gastos ${money(v.expense)}`}`,
           )
           .join("; ")}
         style={{
@@ -1410,7 +1767,7 @@ function ChartView({ rows, sales, grouping, type }) {
                 <div
                   className="bar income-bar"
                   style={{ height: `${(value.income / max) * 100}%` }}
-                  title={`${value.key} — receitas: ${money(value.income)}`}
+                  title={`${value.key} — ganhos: ${money(value.income)}`}
                   tabIndex={0}
                 >
                   <span className="bar-tooltip">{money(value.income)}</span>
@@ -1419,7 +1776,7 @@ function ChartView({ rows, sales, grouping, type }) {
                   <div
                     className="bar expense-bar"
                     style={{ height: `${(value.expense / max) * 100}%` }}
-                    title={`${value.key} — despesas: ${money(value.expense)}`}
+                    title={`${value.key} — gastos: ${money(value.expense)}`}
                     tabIndex={0}
                   >
                     <span className="bar-tooltip">{money(value.expense)}</span>
@@ -1464,8 +1821,8 @@ function LineChart({ values, sales, grouping }) {
     y: bottom - (value / max) * (bottom - top),
   });
   const series = [
-    { key: "income", label: sales ? "Vendas" : "Receitas", color: "#8069cf" },
-    ...(!sales ? [{ key: "expense", label: "Despesas", color: "#e9a36f" }] : []),
+    { key: "income", label: sales ? "Vendas" : "Ganhos", color: "#8069cf" },
+    ...(!sales ? [{ key: "expense", label: "Gastos", color: "#e9a36f" }] : []),
   ];
   return (
     <div className="chart-scroll">
@@ -1544,7 +1901,7 @@ function Guide({ onStart, onExample }) {
           [
             "02",
             "Escolha sua perspectiva",
-            "Financeiro mostra receitas, despesas e saldo. Vendas mostra receitas, vendas registradas e ticket médio.",
+            "Financeiro mostra ganhos, gastos e saldo. Vendas mostra ganhos, vendas registradas e ticket médio.",
           ],
           [
             "03",
@@ -1570,12 +1927,12 @@ function Guide({ onStart, onExample }) {
           <dl>
             <dt>Saldo</dt>
             <dd>
-              Receitas − despesas. Um valor negativo significa que as saídas
+              Ganhos − gastos. Um valor negativo significa que os gastos
               superaram as entradas.
             </dd>
             <dt>Ticket médio</dt>
             <dd>
-              Receita total ÷ quantidade de vendas. Registre uma receita por
+              Ganhos totais ÷ quantidade de vendas. Registre um ganho por
               venda.
             </dd>
             <dt>Categorias</dt>
@@ -1588,13 +1945,13 @@ function Guide({ onStart, onExample }) {
         <article className="panel">
           <h2>Experimente com seus dados</h2>
           <p>
-            Registre suas vendas e despesas. Compare as categorias para
+            Registre suas vendas e gastos. Compare as categorias para
             identificar os principais custos e acompanhar seu saldo.
           </p>
           <div className="challenge">
             <Icon name="sparkle" />
             <span>
-              Alterne para Vendas para acompanhar a receita e o ticket médio.
+              Alterne para Vendas para acompanhar os ganhos e o ticket médio.
             </span>
           </div>
           <button className="button subtle" onClick={onExample}>

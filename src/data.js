@@ -74,6 +74,19 @@ export function normalizeDate(value) {
   return `${brazilian[3]}-${brazilian[2].padStart(2, "0")}-${brazilian[1].padStart(2, "0")}`;
 }
 
+function normalizeType(value) {
+  const type = String(value || "")
+    .trim()
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (["receita", "revenue", "income", "entrada", "ganho", "ganhos"].includes(type))
+    return "receita";
+  if (["despesa", "expense", "saida", "gasto", "gastos"].includes(type))
+    return "despesa";
+  return type;
+}
+
 export function validateRows(rows) {
   if (!Array.isArray(rows) || rows.length > 5000)
     throw new Error("Use até 5.000 registros.");
@@ -94,9 +107,7 @@ export function validateRows(rows) {
       );
     const description = String(row.description || "").trim(),
       category = String(row.category || "").trim(),
-      type = String(row.type || "")
-        .trim()
-        .toLowerCase(),
+      type = normalizeType(row.type),
       amount = Number(row.amount);
     if (
       !description ||
@@ -108,7 +119,7 @@ export function validateRows(rows) {
         `Linha ${line}: informe descrição (até 120 caracteres) e categoria (até 60).`,
       );
     if (!["receita", "despesa"].includes(type))
-      throw new Error(`Linha ${line}: o tipo deve ser receita ou despesa.`);
+      throw new Error(`Linha ${line}: o tipo deve ser ganho ou gasto.`);
     if (
       !Number.isFinite(amount) ||
       amount <= 0 ||
@@ -253,7 +264,7 @@ export function toCsv(rows) {
         row.date,
         row.description,
         row.category,
-        row.type,
+        row.type === "receita" ? "Ganho" : "Gasto",
         row.amount.toFixed(2).replace(".", ","),
       ]
         .map(escape)

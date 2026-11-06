@@ -117,14 +117,14 @@ function pdfMonthlyChart(doc, rows, sales) {
   const legendStart = sales ? 134 : 111;
   doc.setFillColor(119, 96, 207);
   doc.circle(legendStart, legendY - 1.3, 1.6, "F");
-  pdfText(doc, sales ? "Vendas" : "Receitas", legendStart + 4, legendY, {
+  pdfText(doc, sales ? "Vendas" : "Ganhos", legendStart + 4, legendY, {
     size: 8,
     color: [119, 115, 134],
   });
   if (!sales) {
     doc.setFillColor(233, 163, 111);
     doc.circle(151, legendY - 1.3, 1.6, "F");
-    pdfText(doc, "Despesas", 155, legendY, {
+    pdfText(doc, "Gastos", 155, legendY, {
       size: 8,
       color: [119, 115, 134],
     });
@@ -244,7 +244,7 @@ export function exportPdf({ rows, sales, period }) {
   pdfSlideBase(
     doc,
     "Evolução mensal",
-    sales ? "Receita registrada em cada mês" : "Comparação entre receitas e despesas",
+    sales ? "Ganhos registrados em cada mês" : "Comparação entre ganhos e gastos",
     periodName(period),
     2,
   );
@@ -255,7 +255,7 @@ export function exportPdf({ rows, sales, period }) {
     doc,
     sales ? "Vendas por categoria" : "Sugestões e análises",
     sales
-      ? "Categorias com maior participação na receita"
+      ? "Categorias com maior participação nos ganhos"
       : "Leituras para ajudar você a entender os gastos",
     periodName(period),
     3,

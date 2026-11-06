@@ -1,8 +1,8 @@
 # Gestão Tech
 
-Aplicação web para organizar receitas e despesas e transformá-las em painéis financeiros e de vendas. Permite cadastrar registros, importar planilhas Excel (.xlsx) ou CSV, filtrar períodos e visualizar os resultados em gráficos interativos.
+Aplicação web para organizar ganhos e gastos e transformá-los em painéis financeiros e de vendas. Permite cadastrar registros, usar uma planilha compartilhada do Google Sheets, importar CSV ou Excel (.xlsx), filtrar períodos e visualizar resultados em gráficos interativos.
 
-Esta versão funciona no navegador, com salvamento local e sem cadastro de conta. O painel começa vazio; exemplos fictícios podem ser carregados manualmente para conhecer os recursos.
+O painel pode usar uma planilha Google compartilhada como fonte de dados. Os usuários do app acessam com um código compartilhado, sem entrar em conta Google. Sem o serviço configurado, o app continua salvando localmente no navegador.
 
 ## Requisitos
 
@@ -55,29 +55,42 @@ No Windows, se o PowerShell bloquear `npm.ps1`, substitua `npm` por `npm.cmd`, p
 
 Exibe os indicadores e gráficos calculados a partir dos registros.
 
-- **Financeiro:** receitas, despesas e saldo.
-- **Vendas:** receita de vendas, quantidade de vendas e ticket médio.
+- **Financeiro:** ganhos, gastos e saldo.
+- **Vendas:** ganhos com vendas, quantidade de vendas e ticket médio.
 - **Período:** mostra um mês ou todo o período.
 - **Por mês / Por categoria:** altera o agrupamento dos gráficos.
 - **Colunas / Linha / Rosca:** alterna a visualização dos valores filtrados.
-- **Comparar períodos:** compare receitas, despesas e saldo (ou indicadores de vendas) entre dois meses selecionados.
-- **Distribuição por categoria:** mostra onde se concentram as despesas ou receitas. Nos exemplos financeiros, a barra verde representa Marketing.
+- **Comparar períodos:** compare ganhos, gastos e saldo (ou indicadores de vendas) entre dois meses selecionados.
+- **Distribuição por categoria:** mostra onde se concentram os ganhos ou gastos. Nos exemplos financeiros, a barra verde representa Marketing.
 - **PowerPoint / Exportar PDF:** gera uma apresentação de três páginas com indicadores, gráficos mensais e principais categorias. Os dados acompanham o modelo e o período selecionados.
 
-Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas inclui receitas nos gráficos; despesas continuam disponíveis no modelo Financeiro.
+Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas inclui ganhos nos gráficos; gastos continuam disponíveis no modelo Financeiro.
 
 ### Meus dados
 
 1. Clique em **Adicionar registro**.
-2. Informe data, descrição, categoria, tipo (receita ou despesa) e valor.
+2. Informe data, descrição, categoria, tipo (ganho ou gasto) e valor.
 3. Clique em **Salvar registro**.
 4. Volte a Meu painel para visualizar os resultados.
 
 É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. Os filtros de período e categoria também se aplicam à tabela. O contador acompanha os filtros e os cálculos são atualizados após cada alteração.
 
-**Importar planilha** lê a primeira aba de Excel `.xlsx` que tenha as colunas obrigatórias, ou um CSV. A importação mescla os registros com os dados salvos. Registros com a mesma data, descrição, categoria e tipo são tratados como iguais; a importação avisa quantos encontrou e pede confirmação antes de somar os valores. Diferenças de maiúsculas, acentos e espaços são ignoradas. **Carregar exemplos** substitui o conjunto atual.
+**Planilha compartilhada** conecta o sistema à aba `Gestao Tech` do Google Sheets. As alterações de usuários diferentes são mescladas quando afetam registros distintos; edições simultâneas do mesmo registro são detectadas e pedem uma escolha antes de salvar. Ao conectar pela primeira vez, os dados locais só são enviados depois de confirmar.
 
-**Exportar CSV** baixa todos os registros, inclusive os que não aparecem no filtro atual. O arquivo pode ser importado em outro navegador ou computador.
+**Importar CSV ou XLSX** continua disponível para trazer dados de arquivos. A importação mescla os registros com os dados atuais e pede confirmação antes de somar linhas repetidas. **Carregar exemplos** substitui o conjunto atual.
+
+**Exportar todos os dados** baixa um CSV de backup, inclusive registros que não aparecem no filtro atual. Ele pode ser aberto no Google Sheets, inclusive pelo celular.
+
+### Configurar a planilha compartilhada
+
+1. Crie uma planilha Google para guardar os dados.
+2. Crie um projeto no Google Apps Script. Copie `apps-script/Code.gs` e `apps-script/Bridge.html` para arquivos com esses nomes no projeto.
+3. Em **Configurações do projeto → Propriedades do script**, adicione `SPREADSHEET_ID` com o ID da planilha e `ACCESS_CODE` com um código longo que você compartilhará com a equipe.
+4. No editor do Apps Script, execute `authorizeSpreadsheetAccess` uma vez e aceite a autorização da conta responsável.
+5. Em **Implantar → Nova implantação → App da Web**, escolha **Executar como: você** e permita acesso anônimo. Copie a URL terminada em `/exec`.
+6. Copie `.env.example` para `.env.local`, preencha `VITE_GOOGLE_BRIDGE_URL` e gere novamente o site (`npm run build`). Para hospedagem contínua, configure a mesma variável no ambiente de build da plataforma.
+
+As pessoas que usam o site não precisam de conta Google; elas informam apenas o código compartilhado da equipe. A conta Google é necessária somente para o responsável criar e manter o script. O endpoint é acessível sem login, então o código é a proteção dos dados: use um código longo e compartilhe-o apenas com pessoas autorizadas. O bloqueio do Apps Script serializa as gravações; alterações independentes são mescladas e duas edições concorrentes do mesmo registro são sinalizadas antes de qualquer sobrescrita. Edite a aba `Gestao Tech` pelo app para manter o controle de conflitos.
 
 ### Guia de uso
 
@@ -87,17 +100,17 @@ Explica o cadastro de dados, os modelos, os indicadores e a exportação. També
 
 | Indicador          | Cálculo                                                                     |
 | ------------------ | --------------------------------------------------------------------------- |
-| Receitas           | Soma dos registros do tipo `receita` no período                             |
-| Despesas           | Soma dos registros do tipo `despesa` no período                             |
-| Saldo              | Receitas menos despesas                                                     |
-| Vendas registradas | Quantidade de registros do tipo `receita` no período                        |
-| Ticket médio       | Receita total dividida pela quantidade de vendas; zero quando não há vendas |
+| Ganhos             | Soma dos registros do tipo `receita` no período                             |
+| Gastos             | Soma dos registros do tipo `despesa` no período                             |
+| Saldo              | Ganhos menos gastos                                                         |
+| Vendas registradas | Quantidade de ganhos no período                                             |
+| Ticket médio       | Total de ganhos dividido pela quantidade de vendas; zero sem vendas         |
 
-No modelo Vendas, **cada linha de receita deve representar uma venda**. Registrar a receita mensal em uma única linha fará o sistema contar apenas uma venda, distorcendo o ticket médio.
+No modelo Vendas, **cada linha de ganho deve representar uma venda**. Registrar o total mensal em uma única linha fará o sistema contar apenas uma venda e distorcerá o ticket médio.
 
-Exemplo: duas vendas de R$ 200 e R$ 300, com uma despesa de R$ 100, resultam em R$ 500 de receitas, R$ 100 de despesas, R$ 400 de saldo, duas vendas e ticket médio de R$ 250.
+Exemplo: duas vendas de R$ 200 e R$ 300, com um gasto de R$ 100, resultam em R$ 500 de ganhos, R$ 100 de gastos, R$ 400 de saldo, duas vendas e ticket médio de R$ 250.
 
-Os gráficos agrupam os valores por mês ou categoria. Colunas e linhas comparam receitas e despesas no modelo Financeiro. A rosca mostra a composição dos registros; a lista ao lado detalha receitas, despesas ou vendas por categoria.
+Os gráficos agrupam os valores por mês ou categoria. Colunas e linhas comparam ganhos e gastos no modelo Financeiro. A rosca mostra a composição dos registros; a lista ao lado detalha ganhos, gastos ou vendas por categoria.
 
 ## Formato do CSV
 
@@ -105,9 +118,9 @@ São obrigatórias colunas equivalentes a `data`, `descricao`, `categoria`, `tip
 
 ```csv
 data;descricao;categoria;tipo;valor
-2026-10-01;Venda de camisetas;Produtos;receita;250,00
-2026-10-02;Compra de embalagens;Materiais;despesa;40,00
-2026-10-03;Divulgação;Marketing;despesa;65,00
+2026-10-01;Venda de camisetas;Produtos;ganho;250,00
+2026-10-02;Compra de embalagens;Materiais;gasto;40,00
+2026-10-03;Divulgação;Marketing;gasto;65,00
 ```
 
 Regras de validação:
@@ -115,7 +128,7 @@ Regras de validação:
 - Data válida em **AAAA-MM-DD** ou **DD/MM/AAAA**.
 - Descrição preenchida, com até 120 caracteres.
 - Categoria preenchida, com até 60 caracteres.
-- Tipo `receita` ou `despesa`.
+- Tipo `ganho` ou `gasto`. Os valores antigos `receita` e `despesa` também são aceitos.
 - Valor positivo, até R$ 1 bilhão por registro, com até duas casas decimais e sem o símbolo R$.
 - Arquivo de até **2 MB**, com até **5.000 registros**.
 
@@ -125,15 +138,15 @@ Baixe um modelo em **Meus dados → Baixar arquivo de exemplo**. Planilhas podem
 
 ## Salvamento e backup
 
-Os registros ficam no `localStorage`, armazenamento do próprio navegador. Não são enviados a um banco de dados ou servidor da aplicação.
+Os registros ficam na planilha compartilhada quando o Google Sheets está conectado. O navegador mantém uma cópia local de apoio; sem a conexão configurada, os dados ficam apenas nesse navegador.
 
-- Cada navegador e endereço do site têm seus próprios dados.
-- Outro computador, domínio ou porta não recupera automaticamente os registros anteriores.
+- Sem conexão com a planilha, cada navegador e endereço do site têm seus próprios dados.
+- Com conexão, qualquer pessoa com acesso de edição à planilha pode compartilhar os mesmos registros em outros dispositivos.
 - Apagar os dados de navegação pode remover os registros.
 - Em navegação privada ou com armazenamento bloqueado, o salvamento pode falhar; a interface mostra um aviso.
 - Se os dados salvos não puderem ser lidos, a aplicação não os substitui automaticamente. Confirme a substituição para salvar os dados da sessão, ou importe um CSV válido e confirme a importação.
 
-Use **Exportar CSV** para backup e **Importar planilha** para transferir registros de arquivos `.xlsx` ou CSV. O cache offline guarda os arquivos do site; o CSV é a cópia de segurança dos dados do usuário.
+Use **Exportar todos os dados** para criar um backup CSV. **Importar CSV ou XLSX** permite recuperar esse backup ou transferir registros de outro sistema. A conexão com Google Sheets exige internet; o cache offline guarda os arquivos do site, não a sincronização com a planilha.
 
 ## Preparar para hospedagem
 
@@ -184,11 +197,13 @@ Um servidor na rede local pode atender outros dispositivos enquanto a rede estiv
 ```text
 projetoOSM/
 ├── public/              # Arquivos estáticos e ícone
+├── apps-script/         # Serviço, concorrência e ponte sem login Google
 ├── src/
 │   ├── assets/          # Fonte local e licença
 │   ├── App.jsx          # Telas, navegação e interações
 │   ├── App.css          # Layout, gráficos e responsividade
 │   ├── data.js          # Exemplos, cálculos, agrupamentos e CSV
+│   ├── google-sheets.js # Ponte com o serviço do Google Sheets
 │   ├── index.css        # Fonte e estilos globais
 │   └── main.jsx         # Inicialização do React e cache offline
 ├── tests/data.test.js   # Testes dos cálculos e do CSV
@@ -198,7 +213,7 @@ projetoOSM/
 └── package-lock.json    # Versões das dependências
 ```
 
-**React** organiza a interface e atualiza as telas quando os dados mudam. **CSS e SVG** desenham os gráficos e o visual. **Vite** executa o ambiente de desenvolvimento e gera os arquivos para publicação. Não há backend nesta versão.
+**React** organiza a interface e atualiza as telas quando os dados mudam. **CSS e SVG** desenham os gráficos e o visual. **Vite** executa o ambiente de desenvolvimento e gera os arquivos para publicação. O Apps Script atua como serviço compartilhado e controla gravações simultâneas.
 
 ## Comandos disponíveis
 
@@ -213,4 +228,4 @@ projetoOSM/
 
 ## Limites desta versão
 
-Ainda não há contas, autenticação, compartilhamento de painéis, banco de dados na nuvem, integração automática com sistemas externos ou importação direta de Excel. Hospedar o site não muda o armazenamento: os dados continuam no navegador de cada visitante.
+O sistema não tem contas próprias. Os usuários entram com o código compartilhado da equipe, sem conta Google. O proprietário do Apps Script precisa manter uma conta Google autorizada; sem configurar o serviço, o modo local continua disponível.

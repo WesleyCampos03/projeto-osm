@@ -1170,6 +1170,64 @@ td {
   gap: 15px;
   color: #8c73be;
 }
+.sheets-sync-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 20px;
+  padding: 18px 22px;
+  border: 1px solid #e8e2ef;
+  border-radius: 16px;
+  background: #fbfaff;
+}
+.sheets-sync-card.is-connected {
+  border-color: #cce8dc;
+  background: #f2faf6;
+}
+.sheets-sync-card strong {
+  color: #544762;
+  font-size: 15px;
+}
+.sheets-sync-card p {
+  color: #8a8195;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 5px 0 0;
+}
+.sheets-access-code {
+  display: grid;
+  gap: 6px;
+  max-width: 320px;
+  margin-top: 12px;
+  color: #655774;
+  font-size: 13px;
+  font-weight: 650;
+}
+.sheets-access-code input {
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #ded7e8;
+  border-radius: 10px;
+  background: white;
+  color: #544762;
+  font: inherit;
+}
+.sheets-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+@media (max-width: 650px) {
+  .sheets-sync-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .sheets-conflict-actions {
+    flex-direction: column;
+  }
+}
 .csv-help strong {
   font-size: 14px;
 }

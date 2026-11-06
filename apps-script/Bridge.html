@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top" />
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <script>
+      const allowedMethods = new Set(["readSharedRows", "saveSharedRows"]);
+
+      function post(payload) {
+        window.parent.postMessage(payload, "*");
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.source !== window.parent) return;
+        const { requestId, method, args } = event.data || {};
+        if (!requestId || !allowedMethods.has(method) || !Array.isArray(args)) return;
+
+        const runner = google.script.run
+          .withSuccessHandler((result) => post({ requestId, result }))
+          .withFailureHandler((error) => post({
+            requestId,
+            error: error?.message || "A planilha não conseguiu concluir a solicitação.",
+          }));
+
+        try {
+          runner[method](...args);
+        } catch (error) {
+          post({ requestId, error: error?.message || "Solicitação inválida." });
+        }
+      });
+
+      post({ type: "ready" });
+    </script>
+  </body>
+</html>

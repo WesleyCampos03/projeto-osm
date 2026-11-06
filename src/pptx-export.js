@@ -187,20 +187,20 @@ export async function exportPowerPoint({ rows, sales, period }) {
     "Acompanhamento",
     "Evolução mensal",
     sales
-      ? "Receita registrada em cada mês"
-      : "Comparação entre receitas e despesas",
+      ? "Ganhos registrados em cada mês"
+      : "Comparação entre ganhos e gastos",
   );
   if (data.months.length) {
     const series = [
       {
-        name: sales ? "Vendas" : "Receitas",
+        name: sales ? "Vendas" : "Ganhos",
         labels: data.months.map(({ key }) => monthName(key)),
         values: data.months.map(({ income }) => income),
       },
       ...(!sales
         ? [
             {
-              name: "Despesas",
+              name: "Gastos",
               labels: data.months.map(({ key }) => monthName(key)),
               values: data.months.map(({ expense }) => expense),
             },
@@ -264,7 +264,7 @@ export async function exportPowerPoint({ rows, sales, period }) {
     sales ? "Composição" : "Leitura financeira",
     sales ? "Vendas por categoria" : "Sugestões e análises",
     sales
-      ? "Categorias com maior participação na receita"
+      ? "Categorias com maior participação nos ganhos"
       : "Leituras para ajudar você a entender os gastos",
   );
   if (sales) {
