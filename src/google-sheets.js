@@ -4,6 +4,7 @@ const REQUIRED_HEADERS = ["data", "descricao", "categoria", "tipo", "valor", "id
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
 let identityLibrary;
 let pickerLibrary;
+const formattedSheets = new Set();
 
 function loadScript(src, ready, promise) {
   if (ready()) return Promise.resolve();
@@ -124,6 +125,97 @@ async function getSpreadsheet(token, spreadsheetId) {
   return googleRequest(token, `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=spreadsheetId,spreadsheetUrl,properties(title),sheets(properties(sheetId,title,gridProperties(rowCount)))`);
 }
 
+async function formatDataSheet(token, spreadsheetId, sheet, headers) {
+  const sheetId = sheet.properties?.sheetId;
+  if (sheetId === undefined) throw new Error(`Não foi possível preparar a aba "${SHEET_NAME}".`);
+  const cacheKey = `${spreadsheetId}:${sheetId}`;
+  if (formattedSheets.has(cacheKey)) return;
+
+  const rowCount = Math.max(sheet.properties?.gridProperties?.rowCount || 1000, 2);
+  const column = (name) => headers.indexOf(name);
+  const dataRange = (name) => ({
+    sheetId,
+    startRowIndex: 1,
+    endRowIndex: rowCount,
+    startColumnIndex: column(name),
+    endColumnIndex: column(name) + 1,
+  });
+  const requests = [
+    {
+      updateSheetProperties: {
+        properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+        fields: "gridProperties.frozenRowCount",
+      },
+    },
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: HEADERS.length },
+        cell: { userEnteredFormat: {
+          backgroundColor: { red: 0.35, green: 0.27, blue: 0.57 },
+          textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true },
+          horizontalAlignment: "CENTER",
+          verticalAlignment: "MIDDLE",
+          wrapStrategy: "WRAP",
+        } },
+        fields: "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,wrapStrategy)",
+      },
+    },
+    ...[
+      { startIndex: 0, endIndex: 1, pixelSize: 125 },
+      { startIndex: 1, endIndex: 2, pixelSize: 280 },
+      { startIndex: 2, endIndex: 3, pixelSize: 180 },
+      { startIndex: 3, endIndex: 4, pixelSize: 130 },
+      { startIndex: 4, endIndex: 5, pixelSize: 150 },
+      { startIndex: 5, endIndex: 6, pixelSize: 250 },
+    ].map(({ startIndex, endIndex, pixelSize }) => ({
+      updateDimensionProperties: {
+        range: { sheetId, dimension: "COLUMNS", startIndex, endIndex },
+        properties: { pixelSize },
+        fields: "pixelSize",
+      },
+    })),
+    {
+      repeatCell: {
+        range: dataRange("data"),
+        cell: { userEnteredFormat: { numberFormat: { type: "DATE", pattern: "dd/mm/yyyy" }, horizontalAlignment: "CENTER" } },
+        fields: "userEnteredFormat(numberFormat,horizontalAlignment)",
+      },
+    },
+    {
+      repeatCell: {
+        range: dataRange("valor"),
+        cell: { userEnteredFormat: { numberFormat: { type: "CURRENCY", pattern: '"R$" #,##0.00' }, horizontalAlignment: "RIGHT" } },
+        fields: "userEnteredFormat(numberFormat,horizontalAlignment)",
+      },
+    },
+    ...["descricao", "categoria", "tipo", "id"].map((name) => ({
+      repeatCell: {
+        range: dataRange(name),
+        cell: { userEnteredFormat: { numberFormat: { type: "TEXT", pattern: "@" } } },
+        fields: "userEnteredFormat.numberFormat",
+      },
+    })),
+    ...[
+      { name: "data", condition: { type: "DATE_IS_VALID" }, inputMessage: "Informe uma data válida." },
+      { name: "descricao", condition: { type: "NOT_BLANK" }, inputMessage: "Informe a descrição do registro." },
+      { name: "categoria", condition: { type: "NOT_BLANK" }, inputMessage: "Informe uma categoria." },
+      { name: "tipo", condition: { type: "ONE_OF_LIST", values: [{ userEnteredValue: "Ganho" }, { userEnteredValue: "Gasto" }] }, inputMessage: "Escolha Ganho ou Gasto na lista." },
+      { name: "valor", condition: { type: "NUMBER_GREATER", values: [{ userEnteredValue: "0" }] }, inputMessage: "Informe um valor numérico maior que zero." },
+    ].map(({ name, condition, inputMessage }) => ({
+      setDataValidation: {
+        range: dataRange(name),
+        rule: { condition, inputMessage, strict: true, showCustomUi: name === "tipo" },
+      },
+    })),
+  ];
+
+  await googleRequest(token, `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({ requests }),
+  });
+  formattedSheets.add(cacheKey);
+}
+
 async function ensureDataSheet(token, spreadsheet) {
   let sheet = spreadsheet.sheets?.find((item) => item.properties?.title === SHEET_NAME);
   if (!sheet) {
@@ -140,11 +232,11 @@ async function ensureDataSheet(token, spreadsheet) {
       method: "PUT",
       body: JSON.stringify({ values: [HEADERS] }),
     });
-    return { ...sheet, headers: REQUIRED_HEADERS };
   }
-  const headers = values.map(normalize);
+  const headers = values.length ? values.map(normalize) : REQUIRED_HEADERS;
   if (REQUIRED_HEADERS.some((header) => !headers.includes(header)))
     throw new Error(`A aba "${SHEET_NAME}" precisa ter estas colunas: ${HEADERS.join(", ")}.`);
+  await formatDataSheet(token, spreadsheet.spreadsheetId, sheet, headers);
   return { ...sheet, headers };
 }
 
@@ -156,6 +248,17 @@ function sheetDate(value) {
   const text = String(value || "").trim();
   const brDate = text.match(/^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/);
   return brDate ? `${brDate[3]}-${brDate[2].padStart(2, "0")}-${brDate[1].padStart(2, "0")}` : text;
+}
+
+function sheetDateSerial(value) {
+  const canonical = sheetDate(value);
+  const match = canonical.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const timestamp = Date.UTC(Number(year), Number(month) - 1, Number(day));
+  const date = new Date(timestamp);
+  if (date.getUTCFullYear() !== Number(year) || date.getUTCMonth() !== Number(month) - 1 || date.getUTCDate() !== Number(day)) return null;
+  return timestamp / 86400000 + 25569;
 }
 
 function sheetType(value) {
@@ -184,6 +287,7 @@ export async function readGoogleRows(token, spreadsheetId) {
   const values = result.values || [];
   const rows = rowsFromValues(values, sheet.headers);
   const idIndex = sheet.headers.indexOf("id");
+  const dateIndex = sheet.headers.indexOf("data");
   const columnName = (index) => {
     let value = index + 1;
     let name = "";
@@ -195,16 +299,20 @@ export async function readGoogleRows(token, spreadsheetId) {
     return name;
   };
   let rowIndex = 0;
-  const idUpdates = [];
+  const cellUpdates = [];
   values.forEach((row, index) => {
     if (!row.some((cell) => cell !== "" && cell !== null && cell !== undefined)) return;
-    if (!row[idIndex]) idUpdates.push({ range: `${SHEET_NAME}!${columnName(idIndex)}${index + 2}`, values: [[rows[rowIndex].id]] });
+    if (!row[idIndex]) cellUpdates.push({ range: `${SHEET_NAME}!${columnName(idIndex)}${index + 2}`, values: [[rows[rowIndex].id]] });
+    if (typeof row[dateIndex] === "string") {
+      const serial = sheetDateSerial(row[dateIndex]);
+      if (serial !== null) cellUpdates.push({ range: `${SHEET_NAME}!${columnName(dateIndex)}${index + 2}`, values: [[serial]] });
+    }
     rowIndex++;
   });
-  if (idUpdates.length) {
+  if (cellUpdates.length) {
     await googleRequest(token, `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchUpdate`, {
       method: "POST",
-      body: JSON.stringify({ valueInputOption: "RAW", data: idUpdates }),
+      body: JSON.stringify({ valueInputOption: "RAW", data: cellUpdates }),
     });
   }
   return { rows, revision: rowRevision(rows), spreadsheetUrl: spreadsheetUrl(spreadsheetId) };
@@ -250,7 +358,7 @@ async function replaceData(token, spreadsheetId, rows) {
   if (sheetId === undefined) throw new Error(`Não foi possível preparar a aba "${SHEET_NAME}".`);
   const oldRowCount = sheet.properties?.gridProperties?.rowCount || 1000;
   const endRowIndex = Math.max(oldRowCount, rows.length + 1);
-  const data = [HEADERS, ...rows.map((row) => [row.date, row.description, row.category, row.type === "receita" ? "Ganho" : "Gasto", Number(row.amount), row.id])];
+  const data = [HEADERS, ...rows.map((row) => [sheetDateSerial(row.date) ?? row.date, row.description, row.category, row.type === "receita" ? "Ganho" : "Gasto", Number(row.amount), row.id])];
   const padded = Array.from({ length: endRowIndex - data.length }, () => []);
   const requests = [];
   if (endRowIndex > oldRowCount) requests.push({ appendDimension: { sheetId, dimension: "ROWS", length: endRowIndex - oldRowCount } });
