@@ -7,31 +7,36 @@
   <body>
     <script>
       const allowedMethods = new Set(["readSharedRows", "saveSharedRows"]);
+      const allowedOrigins = new Set([
+        "https://wesleycampos03.github.io",
+        "http://localhost:5173",
+      ]);
 
-      function post(payload) {
-        window.parent.postMessage(payload, "*");
+      function post(payload, targetOrigin) {
+        if (!allowedOrigins.has(targetOrigin)) return;
+        window.parent.postMessage(payload, targetOrigin);
       }
 
       window.addEventListener("message", (event) => {
-        if (event.source !== window.parent) return;
+        if (event.source !== window.parent || !allowedOrigins.has(event.origin)) return;
         const { requestId, method, args } = event.data || {};
         if (!requestId || !allowedMethods.has(method) || !Array.isArray(args)) return;
 
         const runner = google.script.run
-          .withSuccessHandler((result) => post({ requestId, result }))
+          .withSuccessHandler((result) => post({ requestId, result }, event.origin))
           .withFailureHandler((error) => post({
             requestId,
             error: error?.message || "A planilha não conseguiu concluir a solicitação.",
-          }));
+          }, event.origin));
 
         try {
           runner[method](...args);
         } catch (error) {
-          post({ requestId, error: error?.message || "Solicitação inválida." });
+          post({ requestId, error: error?.message || "Solicitação inválida." }, event.origin);
         }
       });
 
-      post({ type: "ready" });
+      for (const origin of allowedOrigins) window.parent.postMessage({ type: "ready" }, origin);
     </script>
   </body>
 </html>
