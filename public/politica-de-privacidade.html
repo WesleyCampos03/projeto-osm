@@ -31,22 +31,22 @@
       <p>Esta política explica como o Gestão Tech trata dados durante o uso do painel financeiro e de vendas. O tratamento deve observar a Lei nº 13.709/2018 (LGPD), especialmente os princípios de finalidade, necessidade, transparência e segurança. O responsável pelo serviço é Wesley Campos, que pode ser contatado pelo e-mail <a href="mailto:wesley.camposaa@gmail.com">wesley.camposaa@gmail.com</a>.</p>
 
       <h2>1. Como o sistema funciona</h2>
-      <p>O Gestão Tech é um aplicativo web estático. Ele não mantém um servidor próprio para receber as linhas das planilhas. Quando você conecta o Google Sheets, o navegador conversa diretamente com os serviços do Google para acessar somente a planilha que você escolheu no seletor do Google. O sistema solicita o escopo <code>drive.file</code>, destinado aos arquivos selecionados para uso pelo aplicativo.</p>
+      <p>O Gestão Tech é um aplicativo web estático. Ele não mantém um servidor próprio para receber as linhas das planilhas. Quando você conecta o Google Sheets, o navegador conversa diretamente com os serviços do Google para criar e acessar uma planilha pessoal no Drive da conta autorizada. O sistema solicita o escopo <code>drive.file</code>, que limita o acesso aos arquivos usados pelo aplicativo.</p>
       <p>O token de autorização do Google é mantido em memória enquanto a sessão do aplicativo está aberta; o sistema não grava esse token no armazenamento local. A conexão precisa ser autorizada novamente em uma nova sessão.</p>
 
       <h2>2. Dados tratados e finalidades</h2>
       <ul>
         <li><strong>Registros inseridos ou importados:</strong> data, descrição, categoria, tipo e valor, para montar tabelas, indicadores, gráficos e arquivos de exportação.</li>
-        <li><strong>Identificação da planilha escolhida:</strong> identificador e nome, para lembrar a seleção no navegador e facilitar uma nova conexão.</li>
+        <li><strong>Identificação da planilha pessoal:</strong> identificador e nome, para lembrar o arquivo criado no navegador e facilitar uma nova conexão.</li>
         <li><strong>Dados técnicos de acesso:</strong> provedores de hospedagem e Google podem tratar informações técnicas necessárias para entregar o site e as APIs, conforme suas próprias políticas.</li>
       </ul>
-      <p>Os registros e a identificação da planilha ficam no armazenamento local do navegador quando o salvamento local está ativo. Ao conectar uma planilha, as alterações são lidas e gravadas no arquivo Google que você selecionou. O conteúdo não é enviado a um servidor próprio do Gestão Tech.</p>
+      <p>Os registros e a identificação da planilha ficam no armazenamento local do navegador quando o salvamento local está ativo. Ao conectar, os registros são lidos e gravados na planilha pessoal criada no Google Drive da conta autorizada. O conteúdo não é enviado a um servidor próprio do Gestão Tech.</p>
 
       <h2>3. Bases legais e escolhas</h2>
-      <p>O sistema trata os dados necessários para executar as funções que você solicita, conforme aplicável à relação de uso, e usa o consentimento concedido na tela OAuth do Google para acessar a planilha selecionada. Você pode negar ou revogar a autorização; sem ela, a sincronização com o Google não funciona. Os dados locais podem continuar disponíveis neste navegador até serem apagados.</p>
+      <p>O sistema trata os dados necessários para executar as funções que você solicita, conforme aplicável à relação de uso, e usa o consentimento concedido na tela OAuth do Google para criar e atualizar a planilha pessoal. Você pode negar ou revogar a autorização; sem ela, a sincronização com o Google não funciona. Os dados locais podem continuar disponíveis neste navegador até serem apagados.</p>
 
       <h2>4. Compartilhamento e serviços de terceiros</h2>
-      <p>O Google processa a autenticação e as solicitações feitas à planilha, de acordo com os termos e a política de privacidade do Google. O GitHub Pages hospeda os arquivos públicos do site e pode tratar dados técnicos de acesso segundo a política do GitHub. Esses provedores podem processar dados em outros países, sujeitos às condições e salvaguardas aplicáveis aos seus serviços.</p>
+      <p>O Google processa a autenticação, a criação da planilha e as solicitações de leitura e gravação, de acordo com os termos e a política de privacidade do Google. O GitHub Pages hospeda os arquivos públicos do site e pode tratar dados técnicos de acesso segundo a política do GitHub. Esses provedores podem processar dados em outros países, sujeitos às condições e salvaguardas aplicáveis aos seus serviços.</p>
       <ul>
         <li><a href="https://policies.google.com/privacy?hl=pt-BR" target="_blank" rel="noopener noreferrer">Privacidade do Google</a></li>
         <li><a href="https://docs.github.com/pt/site-policy/privacy-policies/github-privacy-statement" target="_blank" rel="noopener noreferrer">Privacidade do GitHub</a></li>
@@ -58,7 +58,7 @@
 
       <h2>6. Seus direitos</h2>
       <p>Nos termos da LGPD, você pode solicitar confirmação e acesso a dados pessoais tratados pelo responsável, correção, informações sobre compartilhamento, oposição ou eliminação quando cabível, além de revogar consentimentos. Envie sua solicitação para <a href="mailto:wesley.camposaa@gmail.com?subject=Privacidade%20-%20Gest%C3%A3o%20Tech">wesley.camposaa@gmail.com</a> com o assunto “Privacidade — Gestão Tech”. Para proteger seus dados, poderemos pedir informações razoáveis para confirmar sua identidade. Os direitos e as hipóteses de atendimento são os previstos na legislação.</p>
-      <p>Como as linhas da planilha são armazenadas no seu navegador ou na planilha da sua equipe, o responsável pelo Gestão Tech não consegue consultar, corrigir ou apagar remotamente essas cópias. Use os controles do navegador e do Google Sheets para administrá-las.</p>
+      <p>Como as linhas da planilha são armazenadas no seu navegador ou na planilha da sua conta Google, o responsável pelo Gestão Tech não consegue consultar, corrigir ou apagar remotamente essas cópias. Use os controles do navegador e do Google Sheets para administrá-las.</p>
 
       <h2>7. Segurança e alterações</h2>
       <p>O aplicativo utiliza HTTPS no site e na comunicação com os serviços Google. Proteja o dispositivo e a conta Google usados para acessar dados financeiros, compartilhe a planilha apenas com pessoas autorizadas e mantenha cópias de segurança. Nenhum serviço conectado à internet pode prometer risco zero; incidentes serão tratados conforme as obrigações legais aplicáveis.</p>
