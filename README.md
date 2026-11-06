@@ -2,7 +2,7 @@
 
 Aplicação web para organizar ganhos e gastos e transformá-los em painéis financeiros e de vendas. Permite cadastrar registros, usar uma planilha compartilhada do Google Sheets, importar CSV ou Excel (.xlsx), filtrar períodos e visualizar resultados em gráficos interativos.
 
-O painel pode usar uma planilha Google compartilhada como fonte de dados. Os usuários do app acessam com um código compartilhado, sem entrar em conta Google. Sem o serviço configurado, o app continua salvando localmente no navegador.
+O painel pode usar uma planilha Google compartilhada como fonte de dados. Cada pessoa entra na própria conta Google, escolhe a planilha no Drive e precisa ter permissão de edição nela. Sem conexão, o app continua salvando localmente no navegador.
 
 ## Requisitos
 
@@ -75,22 +75,24 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. Os filtros de período e categoria também se aplicam à tabela. O contador acompanha os filtros e os cálculos são atualizados após cada alteração.
 
-**Planilha compartilhada** conecta o sistema à aba `Gestao Tech` do Google Sheets. As alterações de usuários diferentes são mescladas quando afetam registros distintos; edições simultâneas do mesmo registro são detectadas e pedem uma escolha antes de salvar. Ao conectar pela primeira vez, os dados locais só são enviados depois de confirmar.
+**Planilha compartilhada** conecta o sistema à aba `Gestao Tech` do Google Sheets. Mudanças independentes são mescladas quando possível; edições concorrentes detectadas no mesmo registro pedem uma escolha antes de salvar. Ao conectar pela primeira vez, os dados locais só são enviados depois de confirmar.
 
 **Importar CSV ou XLSX** continua disponível para trazer dados de arquivos. A importação mescla os registros com os dados atuais e pede confirmação antes de somar linhas repetidas. **Carregar exemplos** substitui o conjunto atual.
 
 **Exportar todos os dados** baixa um CSV de backup, inclusive registros que não aparecem no filtro atual. Ele pode ser aberto no Google Sheets, inclusive pelo celular.
 
-### Configurar a planilha compartilhada
+### Configurar a conexão com Google Sheets
 
-1. Crie uma planilha Google para guardar os dados.
-2. Crie um projeto no Google Apps Script. Copie `apps-script/Code.gs` e `apps-script/Bridge.html` para arquivos com esses nomes no projeto.
-3. No início de `Code.gs`, cole o link completo da planilha em `sheetUrl` e defina um código longo em `accessCode`. Esses são os dois únicos valores que precisam ser ajustados no script.
-4. No editor do Apps Script, execute `authorizeSpreadsheetAccess` uma vez e aceite a autorização da conta responsável.
-5. Em **Implantar → Nova implantação → App da Web**, escolha **Executar como: você** e permita acesso anônimo. Copie a URL terminada em `/exec`.
-6. Copie `.env.example` para `.env.local`, preencha `VITE_GOOGLE_BRIDGE_URL` e gere novamente o site (`npm run build`). Para hospedagem contínua, configure a mesma variável no ambiente de build da plataforma. `VITE_GOOGLE_SHEET_URL` é opcional; a URL da planilha é detectada automaticamente após conectar.
+Esta configuração é feita uma vez pela pessoa responsável pelo sistema. Os usuários finais não precisam de Apps Script.
 
-As pessoas que usam o site não precisam de conta Google; elas informam apenas o código compartilhado da equipe. A conta Google é necessária somente para o responsável criar e manter o script. O endpoint é acessível sem login, então o código é a proteção dos dados: use um código longo e compartilhe-o apenas com pessoas autorizadas. O bloqueio do Apps Script serializa as gravações; alterações independentes são mescladas e duas edições concorrentes do mesmo registro são sinalizadas antes de qualquer sobrescrita. Edite a aba `Gestao Tech` pelo app para manter o controle de conflitos.
+1. No Google Cloud Console, crie ou escolha um projeto e habilite **Google Sheets API** e **Google Picker API**.
+2. Configure a tela de consentimento OAuth e crie um **ID do cliente OAuth para aplicativo da Web**. Cadastre como origem autorizada o domínio do site e `http://localhost:5173` para desenvolvimento. Durante os testes, adicione as contas da equipe como testadoras.
+3. Crie uma chave de API para o Google Picker, restringindo-a à API do Picker e aos domínios do site e `https://docs.google.com/*`. O Picker também usa o número do projeto Cloud como App ID.
+4. Copie `.env.example` para `.env.local` e preencha `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY` e `VITE_GOOGLE_APP_ID`. Em hospedagem contínua, configure as mesmas variáveis no ambiente de build e publique novamente o site.
+5. No app, abra **Meus dados → Entrar com Google e escolher planilha**. Selecione a planilha da equipe e aceite o acesso ao arquivo.
+6. Compartilhe essa mesma planilha com as contas Google da equipe, com permissão de edição. Cada pessoa conecta a planilha no app usando a própria conta.
+
+O app pede o escopo `drive.file`, para acessar arquivos selecionados pelo usuário no seletor do Google. Tokens de acesso ficam apenas na memória da página; ao abrir o app novamente, basta conectar de novo. O Google Picker requer projeto Cloud, API habilitada, chave de API e token OAuth. [Guia oficial de configuração do OAuth](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid) · [Guia do Google Picker](https://developers.google.com/workspace/drive/picker/guides/web-picker).
 
 ### Guia de uso
 
@@ -138,10 +140,10 @@ Baixe um modelo em **Meus dados → Baixar arquivo de exemplo**. Planilhas podem
 
 ## Salvamento e backup
 
-Os registros ficam na planilha compartilhada quando o Google Sheets está conectado. O navegador mantém uma cópia local de apoio; sem a conexão configurada, os dados ficam apenas nesse navegador.
+Os registros ficam na planilha escolhida quando o Google Sheets está conectado. O navegador mantém uma cópia local de apoio; sem a conexão, os dados ficam apenas nesse navegador.
 
 - Sem conexão com a planilha, cada navegador e endereço do site têm seus próprios dados.
-- Com conexão, qualquer pessoa com acesso de edição à planilha pode compartilhar os mesmos registros em outros dispositivos.
+- Com conexão, as contas Google que têm acesso de edição à mesma planilha compartilham os registros em outros dispositivos.
 - Apagar os dados de navegação pode remover os registros.
 - Em navegação privada ou com armazenamento bloqueado, o salvamento pode falhar; a interface mostra um aviso.
 - Se os dados salvos não puderem ser lidos, a aplicação não os substitui automaticamente. Confirme a substituição para salvar os dados da sessão, ou importe um CSV válido e confirme a importação.
@@ -197,13 +199,12 @@ Um servidor na rede local pode atender outros dispositivos enquanto a rede estiv
 ```text
 projetoOSM/
 ├── public/              # Arquivos estáticos e ícone
-├── apps-script/         # Serviço, concorrência e ponte sem login Google
 ├── src/
 │   ├── assets/          # Fonte local e licença
 │   ├── App.jsx          # Telas, navegação e interações
 │   ├── App.css          # Layout, gráficos e responsividade
 │   ├── data.js          # Exemplos, cálculos, agrupamentos e CSV
-│   ├── google-sheets.js # Ponte com o serviço do Google Sheets
+│   ├── google-sheets.js # Autorização, seleção e sincronização com Sheets API
 │   ├── index.css        # Fonte e estilos globais
 │   └── main.jsx         # Inicialização do React e cache offline
 ├── tests/data.test.js   # Testes dos cálculos e do CSV
@@ -213,7 +214,7 @@ projetoOSM/
 └── package-lock.json    # Versões das dependências
 ```
 
-**React** organiza a interface e atualiza as telas quando os dados mudam. **CSS e SVG** desenham os gráficos e o visual. **Vite** executa o ambiente de desenvolvimento e gera os arquivos para publicação. O Apps Script atua como serviço compartilhado e controla gravações simultâneas.
+**React** organiza a interface e atualiza as telas quando os dados mudam. **CSS e SVG** desenham os gráficos e o visual. **Vite** executa o ambiente de desenvolvimento e gera os arquivos para publicação. Google Identity Services autoriza cada usuário, o Google Picker seleciona a planilha e a Sheets API lê e atualiza os dados. Os arquivos antigos em `apps-script/` não fazem parte desta conexão.
 
 ## Comandos disponíveis
 
@@ -228,4 +229,4 @@ projetoOSM/
 
 ## Limites desta versão
 
-O sistema não tem contas próprias. Os usuários entram com o código compartilhado da equipe, sem conta Google. O proprietário do Apps Script precisa manter uma conta Google autorizada; sem configurar o serviço, o modo local continua disponível.
+O sistema não tem contas próprias; a autorização e as permissões da planilha são gerenciadas pela conta Google de cada usuário. A integração exige as credenciais públicas do projeto Google Cloud configuradas no build. Sem elas, o modo local continua disponível. A sincronização detecta alterações remotas e faz mesclagem otimista; para serialização rigorosa das gravações simultâneas seria necessário um serviço de backend com bloqueio compartilhado.
