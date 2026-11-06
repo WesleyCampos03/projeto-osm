@@ -2612,3 +2612,208 @@ footer {
     font-size: 10px;
   }
 }
+
+/* Ações móveis: textos quebram sem cortar e controles mantêm área de toque. */
+@media (max-width: 680px) {
+  button,
+  [role="button"] {
+    min-width: 0;
+    touch-action: manipulation;
+  }
+
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 3px solid #7760cf55;
+    outline-offset: 2px;
+  }
+
+  .button {
+    min-height: 46px;
+    max-width: 100%;
+    padding: 10px 12px;
+    line-height: 1.3;
+    white-space: normal;
+  }
+
+  .text-button {
+    min-height: 44px;
+    max-width: 100%;
+    padding: 8px 4px;
+    line-height: 1.35;
+    white-space: normal;
+  }
+
+  .nav-item {
+    min-width: 0;
+    min-height: 44px;
+    line-height: 1.25;
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .segmented {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .segmented button {
+    min-width: 0;
+    min-height: 44px;
+    justify-content: center;
+    padding: 9px 6px;
+    white-space: normal;
+  }
+
+  .toolbar-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .toolbar-actions .period {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    width: 100%;
+  }
+
+  .toolbar-actions > .button,
+  .page-heading > .button {
+    width: 100%;
+  }
+
+  .data-actions {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .data-buttons {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .data-buttons .button,
+  .sheets-sync-card > .button,
+  .sheets-conflict-actions > .button,
+  .sheets-conflict-actions > .text-button {
+    width: 100%;
+  }
+
+  .data-clear-button {
+    align-self: flex-end;
+    width: auto;
+  }
+
+  .presentation-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 8px;
+  }
+
+  .presentation-actions .button {
+    width: 100%;
+    min-width: 0;
+    gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .chart-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .chart-grouping {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .chart-grouping button,
+  .chart-type button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 6px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+
+  .chart-type {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .dialog-actions {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  .dialog-actions .button {
+    width: 100%;
+  }
+
+  .icon-button,
+  .notice button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .button.icon-button {
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+  }
+
+  .row-actions {
+    gap: 5px;
+  }
+
+  .row-actions .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .csv-help-actions .text-button {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .insight .text-button {
+    margin-left: 0;
+    flex-shrink: 1;
+  }
+
+  .event-strip .button {
+    width: 100%;
+  }
+}
+
+@media (hover: none) and (max-width: 680px) {
+  .button:hover,
+  .icon-button:hover {
+    transform: none;
+  }
+
+  .primary:hover {
+    background: #7760cf;
+    box-shadow: 0 4px 10px #7760cf18;
+  }
+
+  .subtle:hover {
+    background: #fff;
+  }
+}
