@@ -1780,7 +1780,11 @@ export default function App() {
             <span>
               <strong>gestão tech</strong> · Painéis financeiros e de vendas
             </span>
-            <span>{googleStatus === "conectado" ? "Seus dados ficam na planilha Google conectada." : "Conecte uma planilha Google para compartilhar os dados entre pessoas e dispositivos."}</span>
+            <span className="footer-links">
+              {googleStatus === "conectado" ? "Seus dados ficam na planilha Google conectada." : "Conecte uma planilha Google para compartilhar os dados entre pessoas e dispositivos."}
+              <a href={`${import.meta.env.BASE_URL}politica-de-privacidade.html`}>Privacidade</a>
+              <a href={`${import.meta.env.BASE_URL}termos-de-uso.html`}>Termos</a>
+            </span>
           </footer>
         </div>
       </main>
