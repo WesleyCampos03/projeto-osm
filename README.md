@@ -75,7 +75,7 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. Os filtros de período e categoria também se aplicam à tabela. O contador acompanha os filtros e os cálculos são atualizados após cada alteração.
 
-**Planilha compartilhada** conecta o sistema à aba `Gestao Tech` do Google Sheets. Na primeira conexão, o app prepara o cabeçalho, fixa a linha superior, aplica formatos de data e moeda, ajusta as colunas e valida os campos; a coluna Tipo oferece as opções Ganho e Gasto, e o valor precisa ser maior que zero. Mudanças independentes são mescladas quando possível; edições concorrentes detectadas no mesmo registro pedem uma escolha antes de salvar. Ao conectar pela primeira vez, os dados locais só são enviados depois de confirmar.
+**Planilha compartilhada** conecta o sistema à aba `Gestao Tech` do Google Sheets. Na primeira conexão, o app prepara o cabeçalho, fixa a linha superior, aplica formatos de data e moeda, ajusta as colunas e valida os campos; a coluna Tipo oferece as opções Ganho e Gasto, e o valor precisa ser maior que zero. Registros adicionados, editados ou excluídos no site são sincronizados com a planilha conectada. Alterações feitas diretamente na planilha são carregadas pelo app em até cerca de 20 segundos. Mudanças independentes são mescladas quando possível; edições concorrentes detectadas no mesmo registro pedem uma escolha antes de salvar. Ao conectar pela primeira vez, os dados locais só são enviados depois de confirmar.
 
 **Importar CSV ou XLSX** continua disponível para trazer dados de arquivos. A importação mescla os registros com os dados atuais e pede confirmação antes de somar linhas repetidas. **Carregar exemplos** substitui o conjunto atual.
 
@@ -96,7 +96,7 @@ O projeto Cloud e essas três variáveis são configurados uma vez pela pessoa r
 
 ### Guia de uso
 
-Explica o cadastro de dados, os modelos, os indicadores e a exportação. Em Meus dados, você pode baixar um CSV de exemplo ou criar uma nova planilha Google já preenchida e formatada com os mesmos dados fictícios; essa ação cria uma planilha separada no Drive.
+Explica o cadastro de dados, os modelos, os indicadores e a exportação. Em Meus dados, você pode baixar um CSV de exemplo. Para usar o Google Sheets, conecte a planilha compartilhada da equipe; o sistema não cria uma planilha de exemplo separada.
 
 ## Como os indicadores são calculados
 
