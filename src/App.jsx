@@ -1577,16 +1577,6 @@ export default function App() {
                             : "Entre no Google e escolha a planilha que será compartilhada com a equipe."}
                   </p>
                 </div>
-                <button
-                  className="text-button"
-                  onClick={() => setConfirmation({
-                    type: "clear-local",
-                    title: "Apagar dados deste navegador?",
-                    text: "Isso apaga os registros e a planilha lembrada neste navegador. Os dados da planilha compartilhada não serão apagados. Exporte um backup antes se quiser guardar os registros locais.",
-                  })}
-                >
-                  Apagar cópia local
-                </button>
                 {googleStatus === "conflito" && syncConflict ? (
                   <div className="sheets-conflict-actions">
                     <button className="button subtle" onClick={keepSharedVersion}>Manter versão compartilhada</button>
@@ -1615,25 +1605,37 @@ export default function App() {
                       : "Os exemplos são fictícios. Sem a conexão compartilhada, os registros ficam salvos neste navegador até você apagar a cópia local."}
                   </p>
                 </div>
-                <div className="data-buttons">
+                <div className="data-actions">
+                  <div className="data-buttons">
+                    <button
+                      className="button subtle"
+                      onClick={() =>
+                        setConfirmation({
+                          type: "example",
+                          title: "Carregar exemplos?",
+                          text: "Os exemplos substituirão seus registros. Exporte um CSV antes para guardar seus dados.",
+                        })
+                      }
+                    >
+                      Carregar exemplos
+                    </button>
+                    <button
+                      className="button primary"
+                      onClick={() => fileInput.current.click()}
+                    >
+                      <Icon name="upload" size={17} />
+                      Importar CSV ou XLSX
+                    </button>
+                  </div>
                   <button
-                    className="button subtle"
-                    onClick={() =>
-                      setConfirmation({
-                        type: "example",
-                        title: "Carregar exemplos?",
-                        text: "Os exemplos substituirão seus registros. Exporte um CSV antes para guardar seus dados.",
-                      })
-                    }
+                    className="text-button data-clear-button"
+                    onClick={() => setConfirmation({
+                      type: "clear-local",
+                      title: "Apagar dados deste navegador?",
+                      text: "Isso apaga os registros e a planilha lembrada neste navegador. Os dados da planilha compartilhada não serão apagados. Exporte um backup antes se quiser guardar os registros locais.",
+                    })}
                   >
-                    Carregar exemplos
-                  </button>
-                  <button
-                    className="button primary"
-                    onClick={() => fileInput.current.click()}
-                  >
-                    <Icon name="upload" size={17} />
-                    Importar CSV ou XLSX
+                    Apagar cópia local
                   </button>
                 </div>
               </div>

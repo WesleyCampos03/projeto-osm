@@ -1056,6 +1056,20 @@ footer strong {
   gap: 10px;
   flex-wrap: wrap;
 }
+.data-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+}
+.data-clear-button {
+  padding: 2px 4px;
+  color: #8d8499;
+  font-size: 13px;
+}
+.data-clear-button:hover {
+  color: #a53b52;
+}
 .table-toolbar {
   display: flex;
   justify-content: space-between;
@@ -1558,6 +1572,9 @@ dd {
   }
   .data-intro {
     flex-wrap: wrap;
+  }
+  .data-actions {
+    align-items: flex-start;
   }
   .guide-bottom {
     grid-template-columns: 1fr;

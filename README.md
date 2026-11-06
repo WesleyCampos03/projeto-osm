@@ -75,7 +75,7 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. Os filtros de período e categoria também se aplicam à tabela. O contador acompanha os filtros e os cálculos são atualizados após cada alteração.
 
-**Planilha compartilhada** conecta o sistema à aba `Gestao Tech` do Google Sheets. Mudanças independentes são mescladas quando possível; edições concorrentes detectadas no mesmo registro pedem uma escolha antes de salvar. Ao conectar pela primeira vez, os dados locais só são enviados depois de confirmar.
+**Planilha compartilhada** conecta o sistema à aba `Gestao Tech` do Google Sheets. Na primeira conexão, o app prepara o cabeçalho, fixa a linha superior, aplica formatos de data e moeda, ajusta as colunas e valida os campos; a coluna Tipo oferece as opções Ganho e Gasto, e o valor precisa ser maior que zero. Mudanças independentes são mescladas quando possível; edições concorrentes detectadas no mesmo registro pedem uma escolha antes de salvar. Ao conectar pela primeira vez, os dados locais só são enviados depois de confirmar.
 
 **Importar CSV ou XLSX** continua disponível para trazer dados de arquivos. A importação mescla os registros com os dados atuais e pede confirmação antes de somar linhas repetidas. **Carregar exemplos** substitui o conjunto atual.
 
