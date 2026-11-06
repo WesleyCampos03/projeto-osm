@@ -67,8 +67,14 @@ export async function requestGoogleAccessToken(clientId) {
 export async function openGoogleSheetPicker({ token, apiKey, appId }) {
   await prepareGooglePicker();
   return new Promise((resolve, reject) => {
+    const spreadsheetView = new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS)
+      .setMode(window.google.picker.DocsViewMode.LIST)
+      .setMimeTypes("application/vnd.google-apps.spreadsheet");
     const picker = new window.google.picker.PickerBuilder()
-      .addView(new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS))
+      .addView(spreadsheetView)
+      .setTitle("Escolha a planilha compartilhada")
+      .setSelectableMimeTypes("application/vnd.google-apps.spreadsheet")
+      .setLocale("pt-BR")
       .setOAuthToken(token)
       .setDeveloperKey(apiKey)
       .setAppId(appId)

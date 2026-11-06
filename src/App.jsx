@@ -1582,7 +1582,7 @@ export default function App() {
                         : !GOOGLE_CONFIGURED
                           ? "A conexão Google ainda não foi ativada pelo responsável pelo sistema."
                           : selectedSheet
-                            ? `Entre na conta Google que tem acesso à planilha “${selectedSheet.name || "selecionada"}”.`
+                            ? `Planilha salva anteriormente: “${selectedSheet.name || "selecionada"}”. Entre no Google para escolher a planilha que deseja usar.`
                             : "Entre no Google e escolha a planilha que será compartilhada com a equipe."}
                   </p>
                 </div>
@@ -1601,8 +1601,8 @@ export default function App() {
                     <button className="text-button" onClick={disconnectShared}>Desconectar</button>
                   </div>
                 ) : (
-                  <button className="button subtle" onClick={() => connectGoogle()} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
-                    {selectedSheet ? "Entrar e conectar planilha" : "Entrar com Google e escolher planilha"}
+                  <button className="button subtle" onClick={() => connectGoogle({ chooseSheet: true })} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
+                    Entrar com Google e escolher planilha
                   </button>
                 )}
               </section>
