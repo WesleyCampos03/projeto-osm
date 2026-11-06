@@ -1,8 +1,8 @@
 # Gestão Tech
 
-Aplicação web para organizar ganhos e gastos e transformá-los em painéis financeiros e de vendas. Permite cadastrar registros, usar uma planilha compartilhada do Google Sheets, importar CSV ou Excel (.xlsx), filtrar períodos e visualizar resultados em gráficos interativos.
+Aplicação web para organizar ganhos e gastos e transformá-los em painéis financeiros e de vendas. Permite cadastrar registros, criar uma planilha pessoal no Google Sheets, importar CSV ou Excel (.xlsx), filtrar períodos e visualizar resultados em gráficos interativos.
 
-O painel pode usar uma planilha Google compartilhada como fonte de dados. Cada pessoa entra na própria conta Google, escolhe a planilha no Drive e precisa ter permissão de edição nela. Sem conexão, o app continua salvando localmente no navegador.
+Ao entrar com Google pela primeira vez, o app cria uma planilha formatada no Drive da conta autorizada e a abre em outra aba. A dona da planilha pode compartilhá-la pelo Google Drive se quiser colaborar com outras pessoas. Sem conexão, o app continua salvando localmente no navegador.
 
 ## Requisitos
 
@@ -75,7 +75,7 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 É possível editar registros, excluir com confirmação e pesquisar pela descrição ou categoria. Os filtros de período e categoria também se aplicam à tabela. O contador acompanha os filtros e os cálculos são atualizados após cada alteração.
 
-**Planilha compartilhada** conecta o sistema à aba `Gestao Tech` do Google Sheets. Na primeira conexão, o app prepara o cabeçalho, fixa a linha superior, aplica formatos de data e moeda, ajusta as colunas e valida os campos; a coluna Tipo oferece as opções Ganho e Gasto, e o valor precisa ser maior que zero. Registros adicionados, editados ou excluídos no site são sincronizados com a planilha conectada. Alterações feitas diretamente na planilha são carregadas pelo app em até cerca de 20 segundos. Mudanças independentes são mescladas quando possível; edições concorrentes detectadas no mesmo registro pedem uma escolha antes de salvar. Ao conectar pela primeira vez, os dados locais só são enviados depois de confirmar.
+**Planilha pessoal no Google Drive** cria a aba `Gestao Tech` na conta Google autorizada, aplica formatos de data e moeda, ajusta as colunas e valida os campos; a coluna Tipo oferece Ganho e Gasto, e o valor precisa ser maior que zero. Os registros locais existentes são copiados para a nova planilha. O endereço da planilha fica lembrado naquele navegador para os próximos acessos. Registros adicionados, editados ou excluídos no site são sincronizados com ela; alterações feitas diretamente na planilha são carregadas pelo app em até cerca de 20 segundos. A dona pode compartilhar o arquivo pelo Google Drive. Edições concorrentes detectadas no mesmo registro pedem uma escolha antes de salvar.
 
 **Importar CSV ou XLSX** continua disponível para trazer dados de arquivos. A importação mescla os registros com os dados atuais e pede confirmação antes de somar linhas repetidas. **Carregar exemplos** substitui o conjunto atual.
 
@@ -85,18 +85,17 @@ Os botões Financeiro e Vendas aparecem somente em Meu painel. O modelo Vendas i
 
 Esta configuração é feita uma vez pela pessoa responsável pelo sistema. Os usuários finais não precisam de Apps Script.
 
-1. No Google Cloud Console, crie ou escolha um projeto e habilite **Google Sheets API** e **Google Picker API**.
+1. No Google Cloud Console, crie ou escolha um projeto e habilite **Google Sheets API**.
 2. Configure a tela de consentimento OAuth e crie um **ID do cliente OAuth para aplicativo da Web**. Cadastre como origem autorizada o domínio do site e `http://localhost:5173` para desenvolvimento. Durante os testes, adicione as contas da equipe como testadoras.
-3. Crie uma chave de API para o Google Picker, restringindo-a à API do Picker e aos domínios do site e `https://docs.google.com/*`. O Picker também usa o número do projeto Cloud como App ID.
-4. Para desenvolvimento local, copie `.env.example` para `.env.local` e preencha `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY` e `VITE_GOOGLE_APP_ID`. Para o site no GitHub Pages, cadastre esses três nomes em **Settings → Secrets and variables → Actions → Variables** do repositório. O workflow já injeta as variáveis no build. Esses valores são usados no navegador; não crie nem use client secret. Restrinja a chave de API ao domínio do site e às APIs necessárias.
-5. No app, abra **Meus dados → Entrar com Google e escolher planilha**. Selecione a planilha da equipe e aceite o acesso ao arquivo.
-6. Compartilhe essa mesma planilha com as contas Google da equipe, com permissão de edição. Cada pessoa conecta a planilha no app usando a própria conta.
+3. Para desenvolvimento local, copie `.env.example` para `.env.local` e preencha `VITE_GOOGLE_CLIENT_ID`. Para o site no GitHub Pages, cadastre esse nome em **Settings → Secrets and variables → Actions → Variables** do repositório. O workflow injeta o valor no build. Ele é usado no navegador; não crie nem use client secret.
+4. No app, abra **Meus dados → Entrar com Google e abrir planilha** e autorize o acesso. Na primeira conexão, a planilha pessoal será criada e aberta no Drive.
+5. Para colaborar, abra **Compartilhar** no próprio Google Sheets e conceda acesso às pessoas escolhidas. Elas podem visualizar e editar o arquivo no Google Sheets; o app mantém uma planilha pessoal para cada navegador/usuário.
 
-O projeto Cloud e essas três variáveis são configurados uma vez pela pessoa responsável pelo sistema. Cada usuário entra na própria conta Google, autoriza o acesso e escolhe a mesma planilha da equipe; precisa ter permissão de edição nela. A planilha escolhida fica lembrada naquele navegador, mas, por segurança, cada nova sessão pede que a pessoa conecte o Google novamente. O app pede o escopo `drive.file`, para acessar somente arquivos escolhidos pelo usuário no seletor. [Guia oficial de configuração do OAuth](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid) · [Guia do Google Picker](https://developers.google.com/workspace/drive/picker/guides/web-picker).
+O projeto Cloud e o ID do cliente OAuth são configurados uma vez pela pessoa responsável pelo sistema. Cada usuário entra na própria conta Google e autoriza o acesso. A planilha criada fica lembrada naquele navegador; cada nova sessão pede uma nova autorização. O app pede o escopo `drive.file`, que permite criar e editar os arquivos usados pelo aplicativo. [Guia oficial de configuração do OAuth](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid) · [Escopos da Google Sheets API](https://developers.google.com/workspace/sheets/api/scopes).
 
 ### Guia de uso
 
-Explica o cadastro de dados, os modelos, os indicadores e a exportação. Em Meus dados, você pode baixar um CSV de exemplo. Para usar o Google Sheets, conecte a planilha compartilhada da equipe; o sistema não cria uma planilha de exemplo separada.
+Explica o cadastro de dados, os modelos, os indicadores e a exportação. Em Meus dados, você pode baixar um CSV de exemplo. Ao entrar no Google, o sistema cria e abre a planilha pessoal da conta.
 
 ## Como os indicadores são calculados
 
@@ -140,10 +139,10 @@ Baixe um modelo em **Meus dados → Baixar arquivo de exemplo**. Planilhas podem
 
 ## Salvamento e backup
 
-Os registros ficam na planilha escolhida quando o Google Sheets está conectado. O navegador mantém uma cópia local de apoio; sem a conexão, os dados ficam apenas nesse navegador.
+Os registros ficam na planilha pessoal criada no Google Drive quando a conexão está ativa. O navegador mantém uma cópia local de apoio; sem conexão, os dados ficam apenas nesse navegador. O compartilhamento com outras pessoas é opcional e feito pela dona no Google Drive.
 
 - Sem conexão com a planilha, cada navegador e endereço do site têm seus próprios dados.
-- Com conexão, as contas Google que têm acesso de edição à mesma planilha compartilham os registros em outros dispositivos.
+- Com conexão, o app usa a planilha pessoal vinculada neste navegador; a dona pode conceder acesso a outras contas pelo Google Drive.
 - Apagar os dados de navegação pode remover os registros.
 - Em navegação privada ou com armazenamento bloqueado, o salvamento pode falhar; a interface mostra um aviso.
 - Se os dados salvos não puderem ser lidos, a aplicação não os substitui automaticamente. Confirme a substituição para salvar os dados da sessão, ou importe um CSV válido e confirme a importação.
@@ -214,7 +213,7 @@ projetoOSM/
 └── package-lock.json    # Versões das dependências
 ```
 
-**React** organiza a interface e atualiza as telas quando os dados mudam. **CSS e SVG** desenham os gráficos e o visual. **Vite** executa o ambiente de desenvolvimento e gera os arquivos para publicação. Google Identity Services autoriza cada usuário, o Google Picker seleciona a planilha e a Sheets API lê e atualiza os dados. Os arquivos antigos em `apps-script/` não fazem parte desta conexão.
+**React** organiza a interface e atualiza as telas quando os dados mudam. **CSS e SVG** desenham os gráficos e o visual. **Vite** executa o ambiente de desenvolvimento e gera os arquivos para publicação. Google Identity Services autoriza cada usuário e a Sheets API cria, lê e atualiza a planilha pessoal. Os arquivos antigos em `apps-script/` não fazem parte desta conexão.
 
 ## Comandos disponíveis
 

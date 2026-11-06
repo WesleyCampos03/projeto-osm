@@ -3,7 +3,6 @@ const HEADERS = ["Data", "Descrição", "Categoria", "Tipo", "Valor", "ID"];
 const REQUIRED_HEADERS = ["data", "descricao", "categoria", "tipo", "valor", "id"];
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
 let identityLibrary;
-let pickerLibrary;
 const formattedSheets = new Set();
 
 function loadScript(src, ready, promise) {
@@ -19,31 +18,12 @@ function loadScript(src, ready, promise) {
   });
 }
 
-function prepareGoogleIdentity() {
+export function prepareGoogleIdentity() {
   identityLibrary ||= loadScript(
     "https://accounts.google.com/gsi/client",
     () => Boolean(window.google?.accounts?.oauth2),
   );
   return identityLibrary;
-}
-
-function prepareGooglePicker() {
-  pickerLibrary ||= loadScript(
-    "https://apis.google.com/js/api.js",
-    () => Boolean(window.gapi?.load),
-  ).then(() => new Promise((resolve, reject) => {
-    window.gapi.load("picker", {
-      callback: resolve,
-      onerror: () => reject(new Error("Não foi possível carregar o seletor de planilhas do Google.")),
-      timeout: 10000,
-      ontimeout: () => reject(new Error("O seletor do Google demorou demais para carregar.")),
-    });
-  }));
-  return pickerLibrary;
-}
-
-export function prepareGoogleLibraries() {
-  return Promise.all([prepareGoogleIdentity(), prepareGooglePicker()]);
 }
 
 export async function requestGoogleAccessToken(clientId) {
@@ -64,49 +44,6 @@ export async function requestGoogleAccessToken(clientId) {
   });
 }
 
-export async function openGoogleSheetPicker({ token, apiKey, appId }) {
-  await prepareGooglePicker();
-  return new Promise((resolve, reject) => {
-    const spreadsheetView = new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS)
-      .setMode(window.google.picker.DocsViewMode.LIST)
-      .setMimeTypes("application/vnd.google-apps.spreadsheet");
-    const picker = new window.google.picker.PickerBuilder()
-      .addView(spreadsheetView)
-      .setTitle("Escolha a planilha compartilhada")
-      .setSelectableMimeTypes("application/vnd.google-apps.spreadsheet")
-      .setLocale("pt-BR")
-      .setOAuthToken(token)
-      .setDeveloperKey(apiKey)
-      .setAppId(appId)
-      .setCallback((data) => {
-        const action = data[window.google.picker.Response.ACTION] || data.action;
-        if (action === window.google.picker.Action.PICKED) {
-          const file = data[window.google.picker.Response.DOCUMENTS]?.[0];
-          if (file) {
-            const id = String(file.id || "");
-            if (!/^[A-Za-z0-9_-]+$/.test(id)) {
-              reject(new Error("O seletor retornou um identificador de planilha inválido."));
-              return;
-            }
-            resolve({ id, name: String(file.name || "Planilha").slice(0, 200), url: spreadsheetUrl(id) });
-          }
-          else reject(new Error("Nenhuma planilha foi selecionada."));
-        } else if (action === window.google.picker.Action.CANCEL) {
-          resolve(null);
-        } else if (action === window.google.picker.Action.ERROR) {
-          const details = typeof data.error === "string" ? data.error : data.error?.message;
-          reject(new Error(details
-            ? `O Google Picker falhou: ${details}`
-            : "O seletor do Google encontrou um erro. Confira se a Google Picker API está ativada e se a chave de API permite o domínio do site e docs.google.com."));
-        } else {
-          reject(new Error(`O Google Picker foi fechado sem concluir a seleção${action ? ` (ação: ${action})` : ""}. Tente novamente.`));
-        }
-      })
-      .build();
-    picker.setVisible(true);
-  });
-}
-
 function normalize(value) {
   return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
@@ -122,10 +59,17 @@ function rowRevision(rows) {
 }
 
 function apiError(response, body) {
-  if (response.status === 401) return new Error("Sua autorização Google expirou. Clique em Conectar com Google novamente.");
-  if (response.status === 403) return new Error("Sua conta não tem permissão para editar esta planilha ou o acesso foi negado.");
-  if (response.status === 404) return new Error("A planilha não foi encontrada ou não está compartilhada com esta conta Google.");
-  return new Error(body?.error?.message || `Erro ao acessar o Google Sheets (${response.status}).`);
+  const error = new Error(
+    response.status === 401
+      ? "Sua autorização Google expirou. Clique em Conectar com Google novamente."
+      : response.status === 403
+        ? "Sua conta não tem permissão para editar esta planilha ou o acesso foi negado."
+        : response.status === 404
+          ? "A planilha não foi encontrada ou não está compartilhada com esta conta Google."
+          : body?.error?.message || `Erro ao acessar o Google Sheets (${response.status}).`,
+  );
+  error.status = response.status;
+  return error;
 }
 
 async function googleRequest(token, url, options = {}) {
@@ -408,4 +352,19 @@ export async function writeGoogleRows(token, spreadsheetId, proposedRows, baseRe
   if (merge.conflicts.length) return { conflict: true, conflicts: merge.conflicts, ...current };
   const result = await replaceData(token, spreadsheetId, merge.rows);
   return { conflict: false, ...result };
+}
+
+export async function createPersonalGoogleSheet(token, rows = []) {
+  const title = "Gestão Tech - Meus dados";
+  const created = await googleRequest(token, "https://sheets.googleapis.com/v4/spreadsheets", {
+    method: "POST",
+    body: JSON.stringify({
+      properties: { title },
+      sheets: [{ properties: { title: SHEET_NAME, gridProperties: { rowCount: 1000, columnCount: HEADERS.length } } }],
+    }),
+  });
+  if (!created.spreadsheetId) throw new Error("O Google não retornou o endereço da sua planilha.");
+  const saved = await replaceData(token, created.spreadsheetId, rows);
+  const url = saved.spreadsheetUrl || spreadsheetUrl(created.spreadsheetId);
+  return { ...saved, id: created.spreadsheetId, name: title, url };
 }

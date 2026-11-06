@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import readXlsxFile from "read-excel-file/browser";
 import {
-  openGoogleSheetPicker,
-  prepareGoogleLibraries,
+  createPersonalGoogleSheet,
+  prepareGoogleIdentity,
   readGoogleRows,
   requestGoogleAccessToken,
   writeGoogleRows,
@@ -21,10 +21,8 @@ import "./App.css";
 
 const KEY = "gestao-tech-data-v1";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
-const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
-const GOOGLE_APP_ID = import.meta.env.VITE_GOOGLE_APP_ID || "";
-const GOOGLE_CONFIGURED = Boolean(GOOGLE_CLIENT_ID && GOOGLE_API_KEY && GOOGLE_APP_ID);
-const SELECTED_SHEET_KEY = "gestao-tech-google-sheet-v1";
+const GOOGLE_CONFIGURED = Boolean(GOOGLE_CLIENT_ID);
+const SELECTED_SHEET_KEY = "gestao-tech-personal-sheet-v1";
 const rowSignature = (rows) => JSON.stringify(rows.map(({ id, date, description, category, type, amount }) => ({ id, date, description, category, type, amount })));
 const blank = {
   date: "",
@@ -509,7 +507,7 @@ export default function App() {
   }, [googleStatus, rows, updateRows]);
   useEffect(() => {
     if (!GOOGLE_CONFIGURED) return undefined;
-    prepareGoogleLibraries().catch(() => {});
+    prepareGoogleIdentity().catch(() => {});
     return undefined;
   }, []);
   useEffect(() => {
@@ -611,7 +609,7 @@ export default function App() {
           .includes(search.toLocaleLowerCase("pt-BR")),
     )
     .sort((a, b) => b.date.localeCompare(a.date));
-  async function connectGoogle({ chooseSheet = false } = {}) {
+  async function connectGoogle({ openSheet = false } = {}) {
     if (syncRef.current.busy) {
       setNotice("Aguarde a gravação em andamento antes de sincronizar novamente.");
       return;
@@ -620,30 +618,44 @@ export default function App() {
       setNotice("A conexão com Google ainda não foi configurada neste sistema.");
       return;
     }
+    const sheetWindow = openSheet ? window.open("about:blank", "_blank") : null;
+    if (sheetWindow) {
+      sheetWindow.document.title = "Preparando sua planilha";
+      sheetWindow.document.body.textContent = "Preparando sua planilha do Gestão Tech…";
+    }
     const previous = { ...syncRef.current, baselineRows: [...syncRef.current.baselineRows] };
     syncRef.current.ready = false;
-    setNotice(chooseSheet ? "Escolha uma planilha no seletor do Google." : "Entre na conta Google e aguarde a conexão com a planilha.");
+    setNotice(openSheet ? "Entre na conta Google. Vamos preparar e abrir sua planilha pessoal." : "Entrando na conta Google e sincronizando sua planilha…");
     try {
       const token = await requestGoogleAccessToken(GOOGLE_CLIENT_ID);
       setGoogleStatus("sincronizando");
       let sheet = selectedSheet;
-      if (!sheet || chooseSheet) {
-        sheet = await openGoogleSheetPicker({ token, apiKey: GOOGLE_API_KEY, appId: GOOGLE_APP_ID });
-        if (!sheet) {
-          syncRef.current = previous;
-          setGoogleStatus(previous.ready ? "conectado" : "desconectado");
-          return;
+      let result;
+      if (sheet) {
+        try {
+          result = await readGoogleRows(token, sheet.id);
+        } catch (error) {
+          if (![403, 404].includes(error.status)) throw error;
+          sheet = null;
         }
+      }
+      if (!sheet) {
+        const created = await createPersonalGoogleSheet(token, rows);
+        sheet = { id: created.id, name: created.name, url: created.url };
+        result = created;
         rememberSelectedSheet(sheet);
         setSelectedSheet(sheet);
         setGoogleSheetUrl(sheet.url);
+      }
+      if (openSheet && sheetWindow && (sheet.url || result.spreadsheetUrl)) {
+        sheetWindow.opener = null;
+        sheetWindow.location.replace(sheet.url || result.spreadsheetUrl);
       }
       const hasPendingLocalChanges = previous.spreadsheetId === sheet.id &&
         previous.revision &&
         rowSignature(previous.baselineRows) !== rowSignature(rows);
       syncRef.current.ready = false;
       setGoogleStatus("sincronizando");
-      const result = await readGoogleRows(token, sheet.id);
       const remoteRows = validateRows(result.rows);
       if (result.spreadsheetUrl) {
         sheet = { ...sheet, url: result.spreadsheetUrl };
@@ -699,7 +711,7 @@ export default function App() {
         setConfirmation({
           type: "shared-migrate",
           title: "Enviar seus dados para a planilha?",
-          text: `A aba Gestao Tech está vazia. Enviar os ${rows.length} registros salvos neste navegador para a planilha compartilhada?`,
+          text: `A aba Gestao Tech está vazia. Enviar os ${rows.length} registros salvos neste navegador para sua planilha Google?`,
         });
         setGoogleStatus("desconectado");
         return;
@@ -721,8 +733,11 @@ export default function App() {
       skipSyncRef.current = true;
       updateRows(remoteRows, { remote: true });
       setGoogleStatus("conectado");
-      setNotice(`Conectado à planilha${sheet.name ? ` “${sheet.name}”` : ""}.`);
+      setNotice(openSheet && !sheetWindow
+        ? `Sua planilha${sheet.name ? ` “${sheet.name}”` : ""} está pronta. Use “Abrir planilha” para editá-la no Google Sheets.`
+        : `Conectado à sua planilha${sheet.name ? ` “${sheet.name}”` : ""}.`);
     } catch (error) {
+      if (sheetWindow && !sheetWindow.closed) sheetWindow.close();
       syncRef.current = { spreadsheetId: selectedSheet?.id || "", accessToken: "", revision: "", baselineRows: [], ready: false, busy: false };
       setGoogleStatus("erro");
       setNotice(error.message);
@@ -919,7 +934,7 @@ export default function App() {
       updateRows([], { remote: true });
       setPeriod("todos");
       setCategoryFilter("");
-      if (storageCleared) setNotice("A cópia deste navegador foi apagada. A planilha compartilhada não foi alterada.");
+      if (storageCleared) setNotice("A cópia deste navegador foi apagada. A planilha pessoal no Google Drive não foi alterada.");
       close();
       return;
     }
@@ -949,7 +964,7 @@ export default function App() {
             ready: true,
           };
           setGoogleStatus("conectado");
-          setNotice("Dados enviados para a planilha compartilhada.");
+          setNotice("Dados enviados para sua planilha Google.");
         }
       } catch (error) {
         setGoogleStatus("erro");
@@ -1103,7 +1118,7 @@ export default function App() {
           {online ? "Você está online" : "Modo offline"}
           <small>
             {googleStatus === "conectado"
-              ? "Dados compartilhados no Google Sheets"
+              ? "Planilha pessoal no Google Sheets"
               : saved
                 ? "Dados salvos neste navegador"
                 : "Dados apenas nesta sessão"}
@@ -1571,19 +1586,19 @@ export default function App() {
             <>
               <section className={`sheets-sync-card ${googleStatus === "conectado" ? "is-connected" : ""}`}>
                 <div>
-                  <strong>Conectar uma planilha Google</strong>
+                  <strong>Planilha pessoal no Google Drive</strong>
                   <p>
                     {googleStatus === "conectado"
-                      ? `Conectado${selectedSheet?.name ? ` à planilha “${selectedSheet.name}”` : ""}. As alterações são sincronizadas com o Google Sheets.`
+                      ? `Conectado${selectedSheet?.name ? ` à planilha “${selectedSheet.name}”` : ""}. As alterações são sincronizadas; você pode compartilhá-la pelo Drive.`
                       : googleStatus === "conflito"
                         ? "Duas alterações no mesmo registro precisam de uma escolha. Seus dados não foram sobrescritos."
                       : googleStatus === "sincronizando"
-                        ? "Entrando na conta Google e sincronizando…"
+                        ? "Preparando sua planilha pessoal no Google Drive…"
                         : !GOOGLE_CONFIGURED
                           ? "A conexão Google ainda não foi ativada pelo responsável pelo sistema."
                           : selectedSheet
-                            ? `Planilha salva anteriormente: “${selectedSheet.name || "selecionada"}”. Entre no Google para escolher a planilha que deseja usar.`
-                            : "Entre no Google e escolha a planilha que será compartilhada com a equipe."}
+                            ? `Sua planilha “${selectedSheet.name || "Gestão Tech - Meus dados"}” está salva neste navegador. Entre com a mesma conta Google para abrir e continuar.`
+                            : "Entre com sua conta Google. Na primeira conexão, criaremos uma planilha pessoal formatada no seu Drive. Você pode compartilhá-la depois, se quiser."}
                   </p>
                 </div>
                 {googleStatus === "conflito" && syncConflict ? (
@@ -1596,13 +1611,12 @@ export default function App() {
                 ) : googleStatus === "conectado" ? (
                   <div className="sheets-conflict-actions">
                     <button className="button subtle" onClick={connectGoogle}>Sincronizar agora</button>
-                    <button className="button subtle" onClick={() => connectGoogle({ chooseSheet: true })}>Trocar planilha</button>
                     <button className="button subtle" onClick={() => googleSheetUrl && window.open(googleSheetUrl, "_blank", "noopener,noreferrer")} disabled={!googleSheetUrl}>Abrir planilha</button>
                     <button className="text-button" onClick={disconnectShared}>Desconectar</button>
                   </div>
                 ) : (
-                  <button className="button subtle" onClick={() => connectGoogle({ chooseSheet: true })} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
-                    Entrar com Google e escolher planilha
+                  <button className="button subtle" onClick={() => connectGoogle({ openSheet: true })} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
+                    Entrar com Google e abrir planilha
                   </button>
                 )}
               </section>
@@ -1611,8 +1625,8 @@ export default function App() {
                   <strong>Seu conjunto de dados</strong>
                   <p>
                     {googleStatus === "conectado"
-                      ? "Os exemplos são fictícios. Seus registros estão na planilha compartilhada."
-                      : "Os exemplos são fictícios. Sem a conexão compartilhada, os registros ficam salvos neste navegador até você apagar a cópia local."}
+                      ? "Os registros ficam na sua planilha Google pessoal. Compartilhe-a pelo Drive se quiser trabalhar com outras pessoas."
+                      : "Sem conectar o Google, os registros ficam salvos neste navegador até você apagar a cópia local."}
                   </p>
                 </div>
                 <div className="data-actions">
@@ -1642,7 +1656,7 @@ export default function App() {
                     onClick={() => setConfirmation({
                       type: "clear-local",
                       title: "Apagar dados deste navegador?",
-                      text: "Isso apaga os registros e a planilha lembrada neste navegador. Os dados da planilha compartilhada não serão apagados. Exporte um backup antes se quiser guardar os registros locais.",
+                      text: "Isso apaga os registros e a planilha pessoal lembrada neste navegador. A planilha no Google Drive não será apagada. Exporte um backup antes se quiser guardar os registros locais.",
                     })}
                   >
                     Apagar cópia local
@@ -1783,7 +1797,7 @@ export default function App() {
               <strong>gestão tech</strong> · Painéis financeiros e de vendas
             </span>
             <span className="footer-links">
-              {googleStatus === "conectado" ? "Seus dados ficam na planilha Google conectada." : "Conecte uma planilha Google para compartilhar os dados entre pessoas e dispositivos."}
+              {googleStatus === "conectado" ? "Seus dados ficam na sua planilha Google pessoal; o compartilhamento é opcional pelo Drive." : "Entre com Google para criar e abrir sua planilha pessoal no Drive."}
               <a href={`${import.meta.env.BASE_URL}politica-de-privacidade.html`}>Privacidade</a>
               <a href={`${import.meta.env.BASE_URL}termos-de-uso.html`}>Termos</a>
             </span>
