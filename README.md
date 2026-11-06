@@ -96,7 +96,7 @@ O projeto Cloud e essas três variáveis são configurados uma vez pela pessoa r
 
 ### Guia de uso
 
-Explica o cadastro de dados, os modelos, os indicadores e a exportação. Também permite baixar um CSV de exemplo.
+Explica o cadastro de dados, os modelos, os indicadores e a exportação. Em Meus dados, você pode baixar um CSV de exemplo ou criar uma nova planilha Google já preenchida e formatada com os mesmos dados fictícios; essa ação cria uma planilha separada no Drive.
 
 ## Como os indicadores são calculados
 
