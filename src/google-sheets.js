@@ -3,7 +3,6 @@ const HEADERS = ["Data", "Descrição", "Categoria", "Tipo", "Valor", "ID"];
 const REQUIRED_HEADERS = ["data", "descricao", "categoria", "tipo", "valor", "id"];
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
 let identityLibrary;
-let pickerLibrary;
 const formattedSheets = new Set();
 
 function loadScript(src, ready, promise) {
@@ -42,40 +41,6 @@ export async function requestGoogleAccessToken(clientId) {
       error_callback: (error) => reject(new Error(error?.message || "Não foi possível abrir a autorização do Google.")),
     });
     client.requestAccessToken({ prompt: "" });
-  });
-}
-
-export async function chooseGoogleSpreadsheet(token, apiKey, appId) {
-  if (!apiKey || !appId) throw new Error("A seleção de outras planilhas ainda não foi configurada pelo responsável pelo sistema.");
-  pickerLibrary ||= new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = "https://apis.google.com/js/api.js";
-    script.async = true;
-    script.onload = () => window.gapi.load("picker", {
-      callback: resolve,
-      onerror: () => reject(new Error("Não foi possível carregar o seletor do Google Drive.")),
-    });
-    script.onerror = () => reject(new Error("Não foi possível carregar o seletor do Google Drive."));
-    document.head.append(script);
-  });
-  await pickerLibrary;
-  return new Promise((resolve, reject) => {
-    const picker = new window.google.picker.PickerBuilder()
-      .setDeveloperKey(apiKey)
-      .setAppId(String(appId))
-      .setOAuthToken(token)
-      .setTitle("Escolha uma planilha para importar")
-      .setOrigin(`${window.location.protocol}//${window.location.host}`)
-      .addView(new window.google.picker.DocsView(window.google.picker.ViewId.SPREADSHEETS).setIncludeFolders(false))
-      .setCallback((data) => {
-        if (data.action === window.google.picker.Action.PICKED) {
-          const file = data.docs?.[0];
-          if (file?.id) resolve({ id: file.id, name: file.name || "Planilha do Google" });
-          else reject(new Error("O Google não retornou a planilha selecionada."));
-        } else if (data.action === window.google.picker.Action.CANCEL) resolve(null);
-      })
-      .build();
-    picker.setVisible(true);
   });
 }
 
@@ -402,47 +367,4 @@ export async function createPersonalGoogleSheet(token, rows = []) {
   const saved = await replaceData(token, created.spreadsheetId, rows);
   const url = saved.spreadsheetUrl || spreadsheetUrl(created.spreadsheetId);
   return { ...saved, id: created.spreadsheetId, name: title, url };
-}
-
-function importedRows(values) {
-  const clean = (value) => normalize(value).replace(/[^a-z0-9]/g, "");
-  const aliases = {
-    data: ["data", "date"],
-    descricao: ["descricao", "description", "item", "produto", "nome"],
-    categoria: ["categoria", "category", "grupo"],
-    tipo: ["tipo", "type", "natureza", "movimento"],
-    valor: ["valor", "amount", "value", "total"],
-    id: ["id", "identificador"],
-  };
-  const headers = (values?.[0] || []).map(clean);
-  const indexes = Object.fromEntries(Object.entries(aliases).map(([key, names]) => [key, headers.findIndex((header) => names.includes(header))]));
-  const required = ["data", "descricao", "categoria", "tipo", "valor"];
-  if (required.some((key) => indexes[key] < 0)) {
-    throw new Error("A planilha escolhida precisa ter cabeçalhos reconhecíveis para Data, Descrição, Categoria, Tipo e Valor.");
-  }
-  return (values || []).slice(1).filter((row) => row.some((cell) => cell !== "" && cell !== null && cell !== undefined)).map((row) => {
-    const rawAmount = row[indexes.valor];
-    const amount = typeof rawAmount === "number" ? rawAmount : Number(String(rawAmount ?? "").replace(/R\$\s?/i, "").replace(/\./g, "").replace(",", ".").trim());
-    const type = sheetType(row[indexes.tipo]);
-    const date = sheetDate(row[indexes.data]);
-    const description = String(row[indexes.descricao] || "").trim();
-    const category = String(row[indexes.categoria] || "").trim();
-    if (!date || !description || !category || !["receita", "despesa"].includes(type) || !Number.isFinite(amount) || amount <= 0) {
-      throw new Error("A planilha contém uma linha inválida. Confira data, descrição, categoria, tipo (Ganho/Gasto) e valor maior que zero.");
-    }
-    return { id: String((indexes.id >= 0 && row[indexes.id]) || crypto.randomUUID()), date, description, category, type, amount };
-  });
-}
-
-export async function importGoogleSpreadsheet(token, spreadsheetId) {
-  const spreadsheet = await getSpreadsheet(token, spreadsheetId);
-  const existing = spreadsheet.sheets?.find((item) => item.properties?.title === SHEET_NAME);
-  if (existing) return readGoogleRows(token, spreadsheetId);
-  const sourceSheet = spreadsheet.sheets?.[0];
-  if (!sourceSheet) throw new Error("A planilha escolhida não tem nenhuma aba para importar.");
-  const sourceTitle = sourceSheet.properties.title;
-  const source = await googleRequest(token, `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(`'${sourceTitle.replace(/'/g, "''")}'!A1:Z5001`)}?valueRenderOption=UNFORMATTED_VALUE`);
-  const rows = importedRows(source.values || []);
-  await ensureDataSheet(token, spreadsheet);
-  return replaceData(token, spreadsheetId, rows);
 }

@@ -2,8 +2,6 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import readXlsxFile from "read-excel-file/browser";
 import {
   createPersonalGoogleSheet,
-  chooseGoogleSpreadsheet,
-  importGoogleSpreadsheet,
   prepareGoogleIdentity,
   readGoogleRows,
   requestGoogleAccessToken,
@@ -23,10 +21,7 @@ import "./App.css";
 
 const KEY = "gestao-tech-data-v1";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
-const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
-const GOOGLE_APP_ID = import.meta.env.VITE_GOOGLE_APP_ID || "";
 const GOOGLE_CONFIGURED = Boolean(GOOGLE_CLIENT_ID);
-const GOOGLE_PICKER_CONFIGURED = Boolean(GOOGLE_API_KEY && GOOGLE_APP_ID);
 const SELECTED_SHEET_KEY = "gestao-tech-personal-sheet-v1";
 const rowSignature = (rows) => JSON.stringify(rows.map(({ id, date, description, category, type, amount }) => ({ id, date, description, category, type, amount })));
 const blank = {
@@ -682,58 +677,6 @@ export default function App() {
       syncRef.current = { spreadsheetId: selectedSheet?.id || "", accessToken: "", revision: "", baselineRows: [], ready: false, busy: false };
       setGoogleStatus("erro");
       setNotice(error.message);
-    }
-  }
-
-  async function chooseAnotherGoogleSheet() {
-    if (syncRef.current.busy) {
-      setNotice("Aguarde a gravação em andamento antes de trocar de planilha.");
-      return;
-    }
-    if (!GOOGLE_CONFIGURED) {
-      setNotice("A conexão com Google ainda não foi configurada neste sistema.");
-      return;
-    }
-    if (!GOOGLE_PICKER_CONFIGURED) {
-      setNotice("Para escolher uma planilha existente, o responsável pelo sistema precisa configurar a chave da API do Google Picker e o número do projeto.");
-      return;
-    }
-    const previousSync = { ...syncRef.current, baselineRows: [...syncRef.current.baselineRows] };
-    syncRef.current.ready = false;
-    try {
-      setGoogleStatus("sincronizando");
-      setNotice("Entre na conta Google e escolha a planilha que deseja usar.");
-      const token = await requestGoogleAccessToken(GOOGLE_CLIENT_ID);
-      const picked = await chooseGoogleSpreadsheet(token, GOOGLE_API_KEY, GOOGLE_APP_ID);
-      if (!picked) {
-        syncRef.current = previousSync;
-        setGoogleStatus(previousSync.ready ? "conectado" : "desconectado");
-        setNotice("Nenhuma planilha foi selecionada.");
-        return;
-      }
-      const result = await importGoogleSpreadsheet(token, picked.id);
-      const sheet = { id: picked.id, name: picked.name, url: result.spreadsheetUrl };
-      rememberSelectedSheet(sheet);
-      setSelectedSheet(sheet);
-      setGoogleSheetUrl(result.spreadsheetUrl);
-      const remoteRows = validateRows(result.rows);
-      syncRef.current = {
-        spreadsheetId: picked.id,
-        accessToken: token,
-        revision: result.revision,
-        baselineRows: remoteRows,
-        ready: false,
-        busy: false,
-      };
-      syncRef.current.ready = true;
-      skipSyncRef.current = true;
-      updateRows(remoteRows, { remote: true });
-      setGoogleStatus("conectado");
-      setNotice(`Planilha “${picked.name}” importada e conectada. Os dados já aparecem no site.`);
-    } catch (error) {
-      syncRef.current = previousSync;
-      setGoogleStatus(previousSync.ready ? "conectado" : "erro");
-      setNotice(`Não foi possível importar a planilha: ${error.message}`);
     }
   }
 
@@ -1570,16 +1513,12 @@ export default function App() {
                   <div className="sheets-conflict-actions">
                     <button className="button subtle" onClick={connectGoogle}>Atualizar dados do Sheets</button>
                     <button className="button subtle" onClick={() => googleSheetUrl && window.open(googleSheetUrl, "_blank", "noopener,noreferrer")} disabled={!googleSheetUrl}>Abrir planilha</button>
-                    <button className="button subtle" onClick={chooseAnotherGoogleSheet}>Importar de outra planilha</button>
                     <button className="text-button" onClick={disconnectShared}>Desconectar</button>
                   </div>
                 ) : (
                   <div className="sheets-conflict-actions">
                     <button className="button subtle" onClick={() => connectGoogle({ openSheet: true })} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
                       Entrar com Google e abrir planilha
-                    </button>
-                    <button className="button subtle" onClick={chooseAnotherGoogleSheet} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
-                      Importar de outra planilha
                     </button>
                   </div>
                 )}

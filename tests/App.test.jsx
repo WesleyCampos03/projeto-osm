@@ -31,23 +31,21 @@ describe("dashboard and data filters", () => {
     render(<App />);
 
     const table = screen.getByRole("table");
-    const incomeRow = within(table).getByRole("row", { name: /Receitas/ });
+    const incomeRow = within(table).getByRole("row", { name: /Ganhos/ });
     expect(incomeRow.textContent).toContain("7.500,00");
     expect(incomeRow.textContent).toContain("9.200,00");
     expect(incomeRow.textContent).toContain("1.700,00");
 
-    fireEvent.change(screen.getByLabelText("Período A"), {
-      target: { value: "2026-08" },
-    });
-    fireEvent.change(screen.getByLabelText("Período B"), {
-      target: { value: "2026-09" },
-    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Período A" }));
+    fireEvent.click(screen.getByRole("option", { name: "agosto de 2026" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Período B" }));
+    fireEvent.click(screen.getByRole("option", { name: "setembro de 2026" }));
     expect(incomeRow.textContent).toContain("6.900,00");
     expect(incomeRow.textContent).toContain("7.500,00");
 
     fireEvent.click(screen.getByRole("button", { name: "Vendas" }));
     const salesRow = within(table).getByRole("row", {
-      name: /Receita de vendas/,
+      name: /Ganhos com vendas/,
     });
     expect(salesRow.textContent).toContain("6.900,00");
     expect(within(table).getByRole("row", { name: /Ticket médio/ }).textContent)
@@ -57,9 +55,8 @@ describe("dashboard and data filters", () => {
   it("combines the category filter with the text search", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Meus dados" }));
-    fireEvent.change(screen.getByLabelText("Filtrar por categoria"), {
-      target: { value: "Produtos" },
-    });
+    fireEvent.click(screen.getByRole("combobox", { name: "Filtrar por categoria" }));
+    fireEvent.click(screen.getByRole("option", { name: "Produtos" }));
     fireEvent.change(
       screen.getByPlaceholderText("Buscar descrição ou categoria…"),
       { target: { value: "acessórios" } },

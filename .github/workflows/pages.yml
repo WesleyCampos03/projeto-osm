@@ -30,8 +30,6 @@ jobs:
       - name: Gerar o site
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
-          VITE_GOOGLE_API_KEY: ${{ vars.VITE_GOOGLE_API_KEY }}
-          VITE_GOOGLE_APP_ID: ${{ vars.VITE_GOOGLE_APP_ID }}
         run: npm run build
       - name: Enviar arquivos do site
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
