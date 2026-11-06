@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import readXlsxFile from "read-excel-file/browser";
-import { readGoogleRows, writeGoogleRows } from "./google-sheets.js";
+import {
+  openGoogleSheetPicker,
+  prepareGoogleLibraries,
+  readGoogleRows,
+  requestGoogleAccessToken,
+  writeGoogleRows,
+} from "./google-sheets.js";
 import {
   exampleRows,
   money,
@@ -14,8 +20,11 @@ import {
 import "./App.css";
 
 const KEY = "gestao-tech-data-v1";
-const GOOGLE_BRIDGE_URL = import.meta.env.VITE_GOOGLE_BRIDGE_URL || "";
-const GOOGLE_SHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_URL || "";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || "";
+const GOOGLE_APP_ID = import.meta.env.VITE_GOOGLE_APP_ID || "";
+const GOOGLE_CONFIGURED = Boolean(GOOGLE_CLIENT_ID && GOOGLE_API_KEY && GOOGLE_APP_ID);
+const SELECTED_SHEET_KEY = "gestao-tech-google-sheet-v1";
 const rowSignature = (rows) => JSON.stringify(rows.map(({ id, date, description, category, type, amount }) => ({ id, date, description, category, type, amount })));
 const blank = {
   date: "",
@@ -302,18 +311,18 @@ function load() {
     };
   }
 }
-function loadSharedAccessCode() {
+function loadSelectedSheet() {
   try {
-    return sessionStorage.getItem("gestao-tech-access-code") || "";
+    return JSON.parse(localStorage.getItem(SELECTED_SHEET_KEY) || "null");
   } catch {
-    return "";
+    return null;
   }
 }
-function rememberSharedAccessCode(value) {
+function rememberSelectedSheet(value) {
   try {
-    sessionStorage.setItem("gestao-tech-access-code", value);
+    localStorage.setItem(SELECTED_SHEET_KEY, JSON.stringify(value));
   } catch {
-    // The code remains usable in this session when session storage is blocked.
+    // The selected sheet remains usable for this session when storage is blocked.
   }
 }
 export default function App() {
@@ -332,10 +341,10 @@ export default function App() {
     [saved, setSaved] = useState(false),
     [online, setOnline] = useState(navigator.onLine);
   const [googleStatus, setGoogleStatus] = useState("desconectado");
-  const [googleSheetUrl, setGoogleSheetUrl] = useState(GOOGLE_SHEET_URL);
-  const [accessCode, setAccessCode] = useState(loadSharedAccessCode);
+  const [selectedSheet, setSelectedSheet] = useState(loadSelectedSheet);
+  const [googleSheetUrl, setGoogleSheetUrl] = useState(() => loadSelectedSheet()?.url || "");
   const [syncConflict, setSyncConflict] = useState(null);
-  const syncRef = useRef({ bridgeUrl: "", accessCode: "", revision: "", baselineRows: [], ready: false, busy: false });
+  const syncRef = useRef({ spreadsheetId: "", accessToken: "", revision: "", baselineRows: [], ready: false, busy: false });
   const skipSyncRef = useRef(false);
   const updateRows = useCallback((next, { remote = false } = {}) => {
     if (remote) skipSyncRef.current = true;
@@ -375,7 +384,7 @@ export default function App() {
   }, [rows, persistenceBlocked]);
   useEffect(() => {
     const sync = syncRef.current;
-    if (!sync.ready || !sync.accessCode || skipSyncRef.current) {
+    if (!sync.ready || !sync.accessToken || skipSyncRef.current) {
       skipSyncRef.current = false;
       return;
     }
@@ -387,8 +396,8 @@ export default function App() {
     const save = async (proposedRows) => {
       try {
         const result = await writeGoogleRows(
-          sync.bridgeUrl,
-          sync.accessCode,
+          sync.accessToken,
+          sync.spreadsheetId,
           proposedRows,
           sync.revision,
           sync.baselineRows,
@@ -419,6 +428,7 @@ export default function App() {
         setGoogleStatus("conectado");
         return true;
       } catch (error) {
+        sync.ready = false;
         setGoogleStatus("erro");
         setNotice(error.message);
         return false;
@@ -437,17 +447,30 @@ export default function App() {
   }, [rows]);
   useEffect(() => {
     const sync = syncRef.current;
-    if (!sync.ready || !sync.accessCode) return;
+    if (!sync.ready || !sync.accessToken) return;
     const refresh = async () => {
       if (sync.busy || !navigator.onLine) return;
       sync.busy = true;
       try {
-        const result = await readGoogleRows(sync.bridgeUrl, sync.accessCode);
+        const result = await readGoogleRows(sync.accessToken, sync.spreadsheetId);
         const remoteRows = validateRows(result.rows);
-        if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
         const current = rowSignature(rows);
         const incoming = rowSignature(remoteRows);
         if (current !== incoming) {
+          const hasLocalChanges = rowSignature(sync.baselineRows) !== current;
+          if (hasLocalChanges) {
+            sync.ready = false;
+            setSyncConflict({
+              baselineRows: sync.baselineRows,
+              localRows: rows,
+              remoteRows,
+              revision: result.revision,
+              conflicts: [],
+            });
+            setGoogleStatus("conflito");
+            setNotice("A planilha mudou enquanto havia alterações locais. Escolha como continuar.");
+            return;
+          }
           sync.revision = result.revision;
           sync.baselineRows = remoteRows;
           skipSyncRef.current = true;
@@ -458,6 +481,7 @@ export default function App() {
         }
         setGoogleStatus("conectado");
       } catch (error) {
+        sync.ready = false;
         setGoogleStatus("erro");
         setNotice(error.message);
       } finally {
@@ -472,6 +496,11 @@ export default function App() {
     const timer = window.setInterval(refresh, 20000);
     return () => window.clearInterval(timer);
   }, [googleStatus, rows, updateRows]);
+  useEffect(() => {
+    if (!GOOGLE_CONFIGURED) return undefined;
+    prepareGoogleLibraries().catch(() => {});
+    return undefined;
+  }, []);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
     window.addEventListener("online", update);
@@ -566,39 +595,48 @@ export default function App() {
           .includes(search.toLocaleLowerCase("pt-BR")),
     )
     .sort((a, b) => b.date.localeCompare(a.date));
-  async function connectGoogle() {
+  async function connectGoogle({ chooseSheet = false } = {}) {
     if (syncRef.current.busy) {
       setNotice("Aguarde a gravação em andamento antes de sincronizar novamente.");
       return;
     }
-    if (!GOOGLE_BRIDGE_URL || !accessCode.trim()) {
-      setNotice("Informe o código de acesso da equipe e configure o serviço compartilhado do Google Sheets.");
+    if (!GOOGLE_CONFIGURED) {
+      setNotice("A conexão com Google ainda não foi configurada neste sistema.");
       return;
     }
     try {
       const previous = syncRef.current;
-      const hasPendingLocalChanges = previous.bridgeUrl === GOOGLE_BRIDGE_URL &&
-        previous.accessCode === accessCode.trim() &&
+      const token = await requestGoogleAccessToken(GOOGLE_CLIENT_ID);
+      let sheet = selectedSheet;
+      if (!sheet || chooseSheet) {
+        sheet = await openGoogleSheetPicker({ token, apiKey: GOOGLE_API_KEY, appId: GOOGLE_APP_ID });
+        if (!sheet) {
+          setGoogleStatus(previous.ready ? "conectado" : "desconectado");
+          return;
+        }
+        rememberSelectedSheet(sheet);
+        setSelectedSheet(sheet);
+        setGoogleSheetUrl(sheet.url);
+      }
+      const hasPendingLocalChanges = previous.spreadsheetId === sheet.id &&
         previous.revision &&
         rowSignature(previous.baselineRows) !== rowSignature(rows);
       syncRef.current.ready = false;
       setGoogleStatus("sincronizando");
-      const result = await readGoogleRows(GOOGLE_BRIDGE_URL, accessCode.trim());
+      const result = await readGoogleRows(token, sheet.id);
       const remoteRows = validateRows(result.rows);
-      if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
+      if (result.spreadsheetUrl) {
+        sheet = { ...sheet, url: result.spreadsheetUrl };
+        rememberSelectedSheet(sheet);
+        setSelectedSheet(sheet);
+        setGoogleSheetUrl(result.spreadsheetUrl);
+      }
       if (hasPendingLocalChanges) {
-        const saveResult = await writeGoogleRows(
-          GOOGLE_BRIDGE_URL,
-          accessCode.trim(),
-          rows,
-          previous.revision,
-          previous.baselineRows,
-        );
+        const saveResult = await writeGoogleRows(token, sheet.id, rows, previous.revision, previous.baselineRows);
         if (saveResult.conflict) {
-          if (saveResult.spreadsheetUrl) setGoogleSheetUrl(saveResult.spreadsheetUrl);
           syncRef.current = {
-            bridgeUrl: GOOGLE_BRIDGE_URL,
-            accessCode: accessCode.trim(),
+            spreadsheetId: sheet.id,
+            accessToken: token,
             revision: saveResult.revision,
             baselineRows: validateRows(saveResult.rows),
             ready: false,
@@ -615,16 +653,14 @@ export default function App() {
           return;
         }
         const savedRows = validateRows(saveResult.rows);
-        if (saveResult.spreadsheetUrl) setGoogleSheetUrl(saveResult.spreadsheetUrl);
         syncRef.current = {
-          bridgeUrl: GOOGLE_BRIDGE_URL,
-          accessCode: accessCode.trim(),
+          spreadsheetId: sheet.id,
+          accessToken: token,
           revision: saveResult.revision,
           baselineRows: savedRows,
           ready: true,
           busy: false,
         };
-        rememberSharedAccessCode(accessCode.trim());
         skipSyncRef.current = true;
         updateRows(savedRows, { remote: true });
         setGoogleStatus("conectado");
@@ -632,14 +668,13 @@ export default function App() {
         return;
       }
       syncRef.current = {
-        bridgeUrl: GOOGLE_BRIDGE_URL,
-        accessCode: accessCode.trim(),
+        spreadsheetId: sheet.id,
+        accessToken: token,
         revision: result.revision,
         baselineRows: remoteRows,
         ready: false,
         busy: false,
       };
-      rememberSharedAccessCode(accessCode.trim());
       if (!remoteRows.length && rows.length) {
         setConfirmation({
           type: "shared-migrate",
@@ -666,9 +701,9 @@ export default function App() {
       skipSyncRef.current = true;
       updateRows(remoteRows, { remote: true });
       setGoogleStatus("conectado");
-      setNotice("Conectado à planilha compartilhada. Não é necessário entrar em uma conta Google.");
+      setNotice(`Conectado à planilha${sheet.name ? ` “${sheet.name}”` : ""}.`);
     } catch (error) {
-      syncRef.current = { bridgeUrl: "", accessCode: "", revision: "", baselineRows: [], ready: false, busy: false };
+      syncRef.current = { spreadsheetId: selectedSheet?.id || "", accessToken: "", revision: "", baselineRows: [], ready: false, busy: false };
       setGoogleStatus("erro");
       setNotice(error.message);
     }
@@ -718,12 +753,10 @@ export default function App() {
 
   function disconnectShared() {
     syncRef.current.ready = false;
-    syncRef.current.accessCode = "";
+    syncRef.current.accessToken = "";
     setSyncConflict(null);
-    setAccessCode("");
-    try { sessionStorage.removeItem("gestao-tech-access-code"); } catch {}
     setGoogleStatus("desconectado");
-    setNotice("Desconectado. Este navegador continuará usando a cópia local dos dados.");
+    setNotice("Google desconectado. Este navegador continuará usando a cópia local dos dados.");
   }
   function changeComparisonPeriod(index, value) {
     setComparisonPeriods((selected) => {
@@ -844,9 +877,8 @@ export default function App() {
       try {
         const sync = syncRef.current;
         setGoogleStatus("sincronizando");
-        const result = await writeGoogleRows(sync.bridgeUrl, sync.accessCode, rows, sync.revision, sync.baselineRows);
+        const result = await writeGoogleRows(sync.accessToken, sync.spreadsheetId, rows, sync.revision, sync.baselineRows);
         if (result.conflict) {
-          if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
           sync.ready = false;
           setSyncConflict({
             baselineRows: sync.baselineRows,
@@ -860,7 +892,6 @@ export default function App() {
           setGoogleStatus("conflito");
           setNotice("A planilha mudou durante a preparação da migração. Escolha qual versão manter.");
         } else {
-          if (result.spreadsheetUrl) setGoogleSheetUrl(result.spreadsheetUrl);
           syncRef.current = {
             ...sync,
             revision: result.revision,
@@ -1490,28 +1521,20 @@ export default function App() {
             <>
               <section className={`sheets-sync-card ${googleStatus === "conectado" ? "is-connected" : ""}`}>
                 <div>
-                  <strong>Planilha compartilhada</strong>
+                  <strong>Conectar uma planilha Google</strong>
                   <p>
                     {googleStatus === "conectado"
-                      ? "Conectado. As alterações são salvas com controle de concorrência e atualizadas para a equipe."
+                      ? `Conectado${selectedSheet?.name ? ` à planilha “${selectedSheet.name}”` : ""}. As alterações são sincronizadas com o Google Sheets.`
                       : googleStatus === "conflito"
                         ? "Duas alterações no mesmo registro precisam de uma escolha. Seus dados não foram sobrescritos."
                       : googleStatus === "sincronizando"
-                        ? "Conectando ou sincronizando com o Google Sheets…"
-                        : "Use o código compartilhado da equipe. Não é necessário entrar em uma conta Google."}
+                        ? "Entrando na conta Google e sincronizando…"
+                        : !GOOGLE_CONFIGURED
+                          ? "A conexão Google ainda não foi ativada pelo responsável pelo sistema."
+                          : selectedSheet
+                            ? `Entre na conta Google que tem acesso à planilha “${selectedSheet.name || "selecionada"}”.`
+                            : "Entre no Google e escolha a planilha que será compartilhada com a equipe."}
                   </p>
-                  {googleStatus !== "conectado" && googleStatus !== "conflito" && (
-                    <label className="sheets-access-code">
-                      Código de acesso da equipe
-                      <input
-                        type="password"
-                        autoComplete="current-password"
-                        value={accessCode}
-                        onChange={(event) => setAccessCode(event.target.value)}
-                        placeholder="Digite o código compartilhado"
-                      />
-                    </label>
-                  )}
                 </div>
                 {googleStatus === "conflito" && syncConflict ? (
                   <div className="sheets-conflict-actions">
@@ -1523,11 +1546,12 @@ export default function App() {
                 ) : googleStatus === "conectado" ? (
                   <div className="sheets-conflict-actions">
                     <button className="button subtle" onClick={connectGoogle}>Sincronizar agora</button>
+                    <button className="button subtle" onClick={() => connectGoogle({ chooseSheet: true })}>Trocar planilha</button>
                     <button className="text-button" onClick={disconnectShared}>Desconectar</button>
                   </div>
                 ) : (
-                  <button className="button subtle" onClick={connectGoogle} disabled={googleStatus === "sincronizando"}>
-                    Conectar sem conta Google
+                  <button className="button subtle" onClick={() => connectGoogle()} disabled={!GOOGLE_CONFIGURED || googleStatus === "sincronizando"}>
+                    {selectedSheet ? "Entrar e conectar planilha" : "Entrar com Google e escolher planilha"}
                   </button>
                 )}
               </section>
